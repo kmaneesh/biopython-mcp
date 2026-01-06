@@ -1,5 +1,9 @@
 """Main MCP server for BioPython tools."""
 
+import os
+import sys
+
+from Bio import Entrez
 from fastmcp import FastMCP
 
 # Import all tool modules
@@ -7,6 +11,17 @@ from biopython_mcp import alignment, database, phylo, sequence, structure
 
 # Initialize FastMCP server
 mcp = FastMCP("biopython-mcp")
+
+# Configure Entrez with environment variables
+_email = os.environ.get("NCBI_EMAIL", "user@example.com")
+_api_key = os.environ.get("NCBI_API_KEY")
+
+Entrez.email = _email  # type: ignore[assignment]
+if _api_key:
+    Entrez.api_key = _api_key  # type: ignore[assignment]
+
+rate_limit_msg = "10 req/sec (with API key)" if _api_key else "3 req/sec (no API key)"
+print(f"Entrez configured: {_email}, Rate limit: {rate_limit_msg}", file=sys.stderr)
 
 # Register sequence tools
 mcp.tool()(sequence.translate_sequence)
@@ -25,6 +40,18 @@ mcp.tool()(database.fetch_genbank)
 mcp.tool()(database.fetch_uniprot)
 mcp.tool()(database.search_pubmed)
 mcp.tool()(database.fetch_sequence_by_id)
+
+# Register Entrez core tools
+mcp.tool()(database.entrez_info)
+mcp.tool()(database.entrez_search)
+mcp.tool()(database.entrez_fetch)
+mcp.tool()(database.entrez_summary)
+
+# Register clinical genomics tools
+mcp.tool()(database.clinvar_variant_lookup)
+mcp.tool()(database.gene_info_fetch)
+mcp.tool()(database.pubmed_search)
+mcp.tool()(database.variant_literature_link)
 
 # Register structure tools
 mcp.tool()(structure.fetch_pdb_structure)

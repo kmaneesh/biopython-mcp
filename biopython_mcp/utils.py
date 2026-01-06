@@ -1,5 +1,11 @@
 """Common utility functions for BioPython MCP server."""
 
+import os
+import re
+import time
+from contextlib import contextmanager
+from typing import Any, Generator
+
 
 def validate_sequence(sequence: str) -> str:
     """
@@ -177,3 +183,106 @@ def calculate_molecular_weight(sequence: str, seq_type: str = "protein") -> floa
         weight += weights.get(char, 0.0)
 
     return round(weight, 2)
+
+
+# Entrez utilities
+class EntrezRateLimiter:
+    """Rate limiter for NCBI Entrez API calls.
+
+    Enforces NCBI rate limits:
+    - 3 requests/second without API key
+    - 10 requests/second with API key
+    """
+
+    def __init__(self) -> None:
+        """Initialize rate limiter with API key detection."""
+        self.has_api_key = bool(os.environ.get("NCBI_API_KEY"))
+        self.delay = 0.1 if self.has_api_key else 0.34  # 10/sec or ~3/sec
+        self.last_call: float = 0.0
+
+    def wait(self) -> None:
+        """Wait if necessary to respect rate limits."""
+        elapsed = time.time() - self.last_call
+        if elapsed < self.delay:
+            time.sleep(self.delay - elapsed)
+        self.last_call = time.time()
+
+
+# Global singleton instance
+_rate_limiter = EntrezRateLimiter()
+
+
+@contextmanager
+def entrez_rate_limit() -> Generator[EntrezRateLimiter, None, None]:
+    """Context manager for rate-limited Entrez calls.
+
+    Automatically enforces NCBI rate limits based on API key availability.
+
+    Example:
+        with entrez_rate_limit():
+            handle = Entrez.esearch(...)
+    """
+    _rate_limiter.wait()
+    yield _rate_limiter
+
+
+def parse_ids(ids: str | list[str]) -> list[str]:
+    """Parse and normalize ID inputs to consistent format.
+
+    Args:
+        ids: Single ID, comma/semicolon/whitespace-separated string, or list of IDs
+
+    Returns:
+        List of cleaned ID strings
+
+    Examples:
+        >>> parse_ids("123456")
+        ['123456']
+        >>> parse_ids("123456,789012")
+        ['123456', '789012']
+        >>> parse_ids(["123456", "789012"])
+        ['123456', '789012']
+        >>> parse_ids("123, 456; 789")
+        ['123', '456', '789']
+    """
+    if isinstance(ids, str):
+        # Split on commas, semicolons, and whitespace
+        id_list = re.split(r'[,;\s]+', ids)
+    else:
+        id_list = ids
+
+    # Clean and filter
+    return [id_str.strip() for id_str in id_list if id_str.strip()]
+
+
+def format_entrez_error(exception: Exception, context: dict[str, Any]) -> dict[str, Any]:
+    """Format Entrez API errors with helpful context.
+
+    Args:
+        exception: The exception that occurred
+        context: Dictionary of context (database, query, ids, etc.)
+
+    Returns:
+        Formatted error dictionary with success=False
+
+    Examples:
+        >>> try:
+        ...     # Entrez call
+        ... except Exception as e:
+        ...     return format_entrez_error(e, {"database": "pubmed", "query": "test"})
+    """
+    error_msg = str(exception)
+
+    # Detect specific error types
+    rate_limit_exceeded = "429" in error_msg or "rate limit" in error_msg.lower()
+    invalid_id = "invalid" in error_msg.lower() or "not found" in error_msg.lower()
+
+    return {
+        "success": False,
+        "error": error_msg,
+        "error_type": (
+            "rate_limit" if rate_limit_exceeded else "invalid_id" if invalid_id else "unknown"
+        ),
+        "rate_limit_exceeded": rate_limit_exceeded,
+        **context,
+    }
