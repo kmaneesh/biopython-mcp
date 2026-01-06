@@ -115,6 +115,10 @@ addopts = "-ra -q --strict-markers --cov=biopython_mcp --cov-report=term-missing
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+markers = [
+    "network: tests that require outbound network access",
+    "entrez: tests that require NCBI Entrez access (requires NCBI_EMAIL and RUN_ENTREZ_TESTS=1)",
+]
 
 [tool.coverage.run]
 source = ["biopython_mcp"]
