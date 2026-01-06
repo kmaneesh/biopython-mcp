@@ -29,9 +29,7 @@ class TestPairwiseAlign:
 
     def test_custom_scoring(self) -> None:
         """Test alignment with custom scoring."""
-        result = pairwise_align(
-            "ATCG", "ATCG", match_score=5.0, mismatch_score=-2.0, gap_open=-3.0
-        )
+        result = pairwise_align("ATCG", "ATCG", match_score=5.0, mismatch_score=-2.0, gap_open=-3.0)
         assert result["success"] is True
         assert result["parameters"]["match_score"] == 5.0
 

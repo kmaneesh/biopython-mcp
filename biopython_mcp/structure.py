@@ -52,9 +52,7 @@ def calculate_structure_stats(pdb_file: str) -> dict[str, Any]:
         num_models = len(structure)
         num_chains = sum(len(model) for model in structure)
         num_residues = sum(len(chain) for model in structure for chain in model)
-        num_atoms = sum(
-            len(residue) for model in structure for chain in model for residue in chain
-        )
+        num_atoms = sum(len(residue) for model in structure for chain in model for residue in chain)
 
         chain_info = []
         for model in structure:

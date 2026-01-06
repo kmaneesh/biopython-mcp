@@ -120,9 +120,7 @@ def multiple_sequence_alignment(
         return {"success": False, "error": str(e), "num_sequences": len(sequences)}
 
 
-def calculate_alignment_score(
-    alignment_str: str, matrix_name: str = "BLOSUM62"
-) -> dict[str, Any]:
+def calculate_alignment_score(alignment_str: str, matrix_name: str = "BLOSUM62") -> dict[str, Any]:
     """
     Calculate the score of a given alignment using a substitution matrix.
 
@@ -190,9 +188,9 @@ def calculate_alignment_score(
                 "matches": matches,
                 "mismatches": mismatches,
                 "gaps": gaps,
-                "identity_percent": round((matches / alignment_length) * 100, 2)
-                if alignment_length > 0
-                else 0,
+                "identity_percent": (
+                    round((matches / alignment_length) * 100, 2) if alignment_length > 0 else 0
+                ),
             },
         }
     except Exception as e:

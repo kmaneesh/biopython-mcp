@@ -76,7 +76,9 @@ def fetch_uniprot(uniprot_id: str, format: str = "fasta") -> dict[str, Any]:
         return {"success": False, "error": str(e), "uniprot_id": uniprot_id}
 
 
-def search_pubmed(query: str, max_results: int = 10, email: str = "user@example.com") -> dict[str, Any]:
+def search_pubmed(
+    query: str, max_results: int = 10, email: str = "user@example.com"
+) -> dict[str, Any]:
     """
     Search PubMed for scientific articles.
 
@@ -118,9 +120,7 @@ def search_pubmed(query: str, max_results: int = 10, email: str = "user@example.
             title = article_data.get("ArticleTitle", "No title")
             abstract = article_data.get("Abstract", {}).get("AbstractText", ["No abstract"])[0]
 
-            results.append(
-                {"pmid": pmid, "title": str(title), "abstract": str(abstract)[:500]}
-            )
+            results.append({"pmid": pmid, "title": str(title), "abstract": str(abstract)[:500]})
 
         return {
             "success": True,
@@ -133,9 +133,7 @@ def search_pubmed(query: str, max_results: int = 10, email: str = "user@example.
         return {"success": False, "error": str(e), "query": query}
 
 
-def fetch_sequence_by_id(
-    db: str, seq_id: str, email: str = "user@example.com"
-) -> dict[str, Any]:
+def fetch_sequence_by_id(db: str, seq_id: str, email: str = "user@example.com") -> dict[str, Any]:
     """
     Fetch a sequence from NCBI database by ID.
 

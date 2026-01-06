@@ -43,9 +43,7 @@ def build_phylogenetic_tree(
                 "num_labels": len(labels),
             }
 
-        alignment_str = "\n".join(
-            [f">{label}\n{seq}" for label, seq in zip(labels, sequences)]
-        )
+        alignment_str = "\n".join([f">{label}\n{seq}" for label, seq in zip(labels, sequences)])
         alignment = AlignIO.read(StringIO(alignment_str), "fasta")
 
         calculator = DistanceCalculator("identity")
@@ -103,9 +101,7 @@ def calculate_distance_matrix(
         if labels is None:
             labels = [f"Seq{i+1}" for i in range(len(sequences))]
 
-        alignment_str = "\n".join(
-            [f">{label}\n{seq}" for label, seq in zip(labels, sequences)]
-        )
+        alignment_str = "\n".join([f">{label}\n{seq}" for label, seq in zip(labels, sequences)])
         alignment = AlignIO.read(StringIO(alignment_str), "fasta")
 
         calculator = DistanceCalculator(model)
