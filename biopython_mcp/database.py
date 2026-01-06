@@ -26,6 +26,15 @@ def fetch_genbank(
         record_text = handle.read()
         handle.close()
 
+        normalized = "".join(record_text.split()).lower()
+        if normalized.startswith("error:") or "failedtounderstandid" in normalized:
+            return {
+                "success": False,
+                "error": record_text.strip() or "NCBI returned an error response",
+                "accession": accession,
+                "format": rettype,
+            }
+
         return {
             "success": True,
             "accession": accession,

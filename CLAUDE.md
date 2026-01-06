@@ -17,7 +17,7 @@ pip install -e ".[dev]"
 ```bash
 biopython-mcp
 # Or directly:
-python -m src.server
+python -m biopython_mcp.server
 ```
 
 ### Testing
@@ -42,7 +42,7 @@ black src/ tests/
 ruff src/ tests/
 
 # Type checking
-mypy src/
+mypy biopython_mcp/
 ```
 
 ## Architecture

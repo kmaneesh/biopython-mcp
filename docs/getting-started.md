@@ -113,5 +113,5 @@ NCBI may rate-limit requests. Ensure you:
 Run mypy to check for type issues:
 
 ```bash
-mypy src/
+mypy biopython_mcp/
 ```

@@ -1,8 +1,8 @@
 """Clinical bioinformatics workflow example."""
 
-from src.sequence import calculate_gc_content, translate_sequence
-from src.alignment import pairwise_align
-from src.database import fetch_genbank, search_pubmed
+from biopython_mcp.sequence import calculate_gc_content, translate_sequence
+from biopython_mcp.alignment import pairwise_align
+from biopython_mcp.database import fetch_genbank, search_pubmed
 
 
 def analyze_patient_mutation() -> None:

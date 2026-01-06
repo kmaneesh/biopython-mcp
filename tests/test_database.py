@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.database import fetch_genbank, fetch_sequence_by_id, fetch_uniprot, search_pubmed
+from biopython_mcp.database import fetch_genbank, fetch_sequence_by_id, fetch_uniprot, search_pubmed
 
 
 class TestFetchGenBank:

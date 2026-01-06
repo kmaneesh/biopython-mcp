@@ -42,7 +42,7 @@ jobs:
 
     - name: Run tests with pytest
       run: |
-        pytest --cov=src --cov-report=xml --cov-report=term-missing
+        pytest --cov=biopython_mcp --cov-report=xml --cov-report=term-missing
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
@@ -70,15 +70,15 @@ jobs:
 
     - name: Run Black
       run: |
-        black --check src/ tests/
+        black --check biopython_mcp/ tests/
 
     - name: Run Ruff
       run: |
-        ruff check src/ tests/
+        ruff check biopython_mcp/ tests/
 
     - name: Run mypy
       run: |
-        mypy src/
+        mypy biopython_mcp/
 
   security:
     runs-on: ubuntu-latest
@@ -98,7 +98,7 @@ jobs:
 
     - name: Run Bandit security scan
       run: |
-        bandit -r src/ -f json -o bandit-report.json
+        bandit -r biopython_mcp/ -f json -o bandit-report.json
       continue-on-error: true
 
     - name: Run Safety check

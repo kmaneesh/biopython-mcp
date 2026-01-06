@@ -61,10 +61,10 @@ Documentation = "https://github.com/kmaneesh/biopython-mcp/blob/main/docs"
 Issues = "https://github.com/kmaneesh/biopython-mcp/issues"
 
 [project.scripts]
-biopython-mcp = "src.server:main"
+biopython-mcp = "biopython_mcp.server:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["biopython_mcp"]
 
 [tool.black]
 line-length = 100
@@ -111,13 +111,13 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --strict-markers --cov=src --cov-report=term-missing"
+addopts = "-ra -q --strict-markers --cov=biopython_mcp --cov-report=term-missing"
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
 
 [tool.coverage.run]
-source = ["src"]
+source = ["biopython_mcp"]
 omit = ["*/tests/*", "*/__pycache__/*"]
 
 [tool.coverage.report]

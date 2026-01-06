@@ -1,14 +1,14 @@
 """Basic usage examples for BioPython MCP server."""
 
-from src.sequence import (
+from biopython_mcp.sequence import (
     calculate_gc_content,
     find_motif,
     reverse_complement,
     transcribe_dna,
     translate_sequence,
 )
-from src.alignment import pairwise_align
-from src.phylo import build_phylogenetic_tree, draw_tree
+from biopython_mcp.alignment import pairwise_align
+from biopython_mcp.phylo import build_phylogenetic_tree, draw_tree
 
 
 def example_sequence_analysis() -> None:

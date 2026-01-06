@@ -326,13 +326,13 @@ pytest
 Run tests with coverage:
 
 ```bash
-pytest --cov=src --cov-report=term-missing
+pytest --cov=biopython_mcp --cov-report=term-missing
 ```
 
 Run type checking:
 
 ```bash
-mypy src/
+mypy biopython_mcp/
 ```
 
 ## License

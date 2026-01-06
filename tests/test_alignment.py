@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.alignment import calculate_alignment_score, pairwise_align
+from biopython_mcp.alignment import calculate_alignment_score, pairwise_align
 
 
 class TestPairwiseAlign:

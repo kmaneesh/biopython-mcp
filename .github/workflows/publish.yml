@@ -71,4 +71,4 @@ jobs:
 
     - name: Verify installation
       run: |
-        python -c "import src; print(src.__version__)"
+        python -c "import biopython_mcp; print(biopython_mcp.__version__)"

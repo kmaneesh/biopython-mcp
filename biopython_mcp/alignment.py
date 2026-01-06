@@ -7,7 +7,7 @@ from Bio.Align import substitution_matrices
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from src.utils import validate_sequence
+from biopython_mcp.utils import validate_sequence
 
 
 def pairwise_align(

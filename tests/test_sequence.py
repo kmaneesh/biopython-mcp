@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.sequence import (
+from biopython_mcp.sequence import (
     calculate_gc_content,
     find_motif,
     reverse_complement,

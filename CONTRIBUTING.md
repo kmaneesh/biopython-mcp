@@ -55,7 +55,7 @@ By participating in this project, you agree to abide by our code of conduct:
    pytest
 
    # Run type checking
-   mypy src/
+   mypy biopython_mcp/
 
    # Run linting
    black src/ tests/
@@ -318,7 +318,7 @@ pytest tests/test_sequence.py::test_translate_sequence
 pytest -v
 
 # Run with coverage
-pytest --cov=src --cov-report=html
+pytest --cov=biopython_mcp --cov-report=html
 ```
 
 ### Debugging
@@ -335,10 +335,10 @@ pytest -s
 
 ```bash
 # Check specific file
-mypy src/sequence.py
+mypy biopython_mcp/sequence.py
 
 # Check all source
-mypy src/
+mypy biopython_mcp/
 
 # Generate coverage report
 mypy --html-report mypy-report src/

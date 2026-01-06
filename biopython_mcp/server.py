@@ -5,7 +5,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 # Import all tool modules
-from src import alignment, database, phylo, sequence, structure
+from biopython_mcp import alignment, database, phylo, sequence, structure
 
 # Initialize FastMCP server
 mcp = FastMCP("biopython-mcp")
