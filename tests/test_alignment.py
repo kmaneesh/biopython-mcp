@@ -1,7 +1,5 @@
 """Tests for alignment operations."""
 
-import pytest
-
 from biopython_mcp.alignment import calculate_alignment_score, pairwise_align
 
 

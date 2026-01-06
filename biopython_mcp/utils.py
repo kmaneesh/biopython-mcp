@@ -1,7 +1,5 @@
 """Common utility functions for BioPython MCP server."""
 
-from typing import Any
-
 
 def validate_sequence(sequence: str) -> str:
     """
@@ -60,10 +58,10 @@ def parse_fasta(fasta_string: str) -> list[dict[str, str]]:
     Returns:
         List of dictionaries containing 'id', 'description', and 'sequence'
     """
-    records = []
-    current_id = None
-    current_description = None
-    current_sequence = []
+    records: list[dict[str, str]] = []
+    current_id: str | None = None
+    current_description: str | None = None
+    current_sequence: list[str] = []
 
     for line in fasta_string.split("\n"):
         line = line.strip()

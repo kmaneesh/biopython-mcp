@@ -20,7 +20,7 @@ def fetch_genbank(
         Dictionary containing the sequence record and metadata
     """
     try:
-        Entrez.email = email
+        Entrez.email = email  # type: ignore[assignment]
 
         handle = Entrez.efetch(db="nucleotide", id=accession, rettype=rettype, retmode="text")
         record_text = handle.read()
@@ -91,7 +91,7 @@ def search_pubmed(
         Dictionary containing search results with PMIDs and article information
     """
     try:
-        Entrez.email = email
+        Entrez.email = email  # type: ignore[assignment]
 
         search_handle = Entrez.esearch(db="pubmed", term=query, retmax=max_results)
         search_results = Entrez.read(search_handle)
@@ -146,7 +146,7 @@ def fetch_sequence_by_id(db: str, seq_id: str, email: str = "user@example.com") 
         Dictionary containing sequence information
     """
     try:
-        Entrez.email = email
+        Entrez.email = email  # type: ignore[assignment]
 
         handle = Entrez.efetch(db=db, id=seq_id, rettype="fasta", retmode="text")
         record = SeqIO.read(handle, "fasta")

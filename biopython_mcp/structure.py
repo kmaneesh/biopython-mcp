@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from Bio.PDB import PDBIO, PDBList, PDBParser, Select
+from Bio.PDB import PDBList, PDBParser
 
 
 def fetch_pdb_structure(pdb_id: str, file_format: str = "pdb") -> dict[str, Any]:

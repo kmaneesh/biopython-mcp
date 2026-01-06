@@ -1,13 +1,10 @@
 """Phylogenetics analysis tools using BioPython."""
 
+from io import StringIO
 from typing import Any
 
-from Bio import Phylo
+from Bio import AlignIO, Phylo
 from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio import AlignIO
-from io import StringIO
 
 
 def build_phylogenetic_tree(
@@ -43,11 +40,12 @@ def build_phylogenetic_tree(
                 "num_labels": len(labels),
             }
 
-        alignment_str = "\n".join([f">{label}\n{seq}" for label, seq in zip(labels, sequences)])
+        alignment_str = "\n".join(
+            [f">{label}\n{seq}" for label, seq in zip(labels, sequences, strict=True)]
+        )
         alignment = AlignIO.read(StringIO(alignment_str), "fasta")
 
         calculator = DistanceCalculator("identity")
-        distance_matrix = calculator.get_distance(alignment)
 
         if method == "nj":
             constructor = DistanceTreeConstructor(calculator, "nj")
@@ -101,13 +99,23 @@ def calculate_distance_matrix(
         if labels is None:
             labels = [f"Seq{i+1}" for i in range(len(sequences))]
 
-        alignment_str = "\n".join([f">{label}\n{seq}" for label, seq in zip(labels, sequences)])
+        if len(labels) != len(sequences):
+            return {
+                "success": False,
+                "error": "Number of labels must match number of sequences",
+                "num_sequences": len(sequences),
+                "num_labels": len(labels),
+            }
+
+        alignment_str = "\n".join(
+            [f">{label}\n{seq}" for label, seq in zip(labels, sequences, strict=True)]
+        )
         alignment = AlignIO.read(StringIO(alignment_str), "fasta")
 
         calculator = DistanceCalculator(model)
         distance_matrix = calculator.get_distance(alignment)
 
-        matrix_dict = {}
+        matrix_dict: dict[str, dict[str, float]] = {}
         for i, name1 in enumerate(distance_matrix.names):
             matrix_dict[name1] = {}
             for j, name2 in enumerate(distance_matrix.names):

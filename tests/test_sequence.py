@@ -1,7 +1,5 @@
 """Tests for sequence operations."""
 
-import pytest
-
 from biopython_mcp.sequence import (
     calculate_gc_content,
     find_motif,

@@ -5,7 +5,7 @@ from typing import Any
 from Bio.Seq import Seq
 from Bio.SeqUtils import gc_fraction
 
-from biopython_mcp.utils import format_sequence_output, validate_sequence
+from biopython_mcp.utils import validate_sequence
 
 
 def translate_sequence(sequence: str, table: int = 1, to_stop: bool = False) -> dict[str, Any]:

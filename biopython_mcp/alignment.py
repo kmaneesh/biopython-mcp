@@ -2,10 +2,7 @@
 
 from typing import Any
 
-from Bio import Align, SeqIO
-from Bio.Align import substitution_matrices
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
+from Bio import Align
 
 from biopython_mcp.utils import validate_sequence
 
@@ -150,8 +147,6 @@ def calculate_alignment_score(alignment_str: str, matrix_name: str = "BLOSUM62")
                 "available_matrices": available_matrices,
             }
 
-        matrix = substitution_matrices.load(matrix_name)
-
         lines = alignment_str.strip().split("\n")
         sequences = [line.strip() for line in lines if line.strip() and not line.startswith(">")]
 
@@ -162,7 +157,6 @@ def calculate_alignment_score(alignment_str: str, matrix_name: str = "BLOSUM62")
                 "num_sequences": len(sequences),
             }
 
-        score = 0
         matches = 0
         mismatches = 0
         gaps = 0

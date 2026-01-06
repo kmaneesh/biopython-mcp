@@ -1,7 +1,5 @@
 """Main MCP server for BioPython tools."""
 
-from typing import Any
-
 from fastmcp import FastMCP
 
 # Import all tool modules
