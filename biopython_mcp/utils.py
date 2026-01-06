@@ -3,8 +3,9 @@
 import os
 import re
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Any
 
 
 def validate_sequence(sequence: str) -> str:
@@ -245,11 +246,8 @@ def parse_ids(ids: str | list[str]) -> list[str]:
         >>> parse_ids("123, 456; 789")
         ['123', '456', '789']
     """
-    if isinstance(ids, str):
-        # Split on commas, semicolons, and whitespace
-        id_list = re.split(r'[,;\s]+', ids)
-    else:
-        id_list = ids
+    # Split on commas, semicolons, and whitespace if string, otherwise use list as-is
+    id_list = re.split(r"[,;\s]+", ids) if isinstance(ids, str) else ids
 
     # Clean and filter
     return [id_str.strip() for id_str in id_list if id_str.strip()]

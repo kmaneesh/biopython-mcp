@@ -359,10 +359,7 @@ def entrez_fetch(
             handle = Entrez.efetch(db=database, id=id_list, rettype=rettype, retmode=retmode)
 
             # Read based on mode
-            if retmode == "xml":
-                data = Entrez.read(handle)
-            else:
-                data = handle.read()
+            data = Entrez.read(handle) if retmode == "xml" else handle.read()
 
             handle.close()
 
@@ -544,13 +541,17 @@ def clinvar_variant_lookup(
                 "clinvar_id": str(summary.get("uid", "")),
                 "title": str(summary.get("title", "")),
                 "accession": str(summary.get("accession", "")),
-                "gene_symbol": str(summary.get("genes", [{}])[0].get("symbol", ""))
-                if summary.get("genes")
-                else "",
+                "gene_symbol": (
+                    str(summary.get("genes", [{}])[0].get("symbol", ""))
+                    if summary.get("genes")
+                    else ""
+                ),
                 "variation_type": str(summary.get("obj_type", "")),
-                "clinical_significance": str(summary.get("clinical_significance", {}).get("description", ""))
-                if isinstance(summary.get("clinical_significance"), dict)
-                else str(summary.get("clinical_significance", "")),
+                "clinical_significance": (
+                    str(summary.get("clinical_significance", {}).get("description", ""))
+                    if isinstance(summary.get("clinical_significance"), dict)
+                    else str(summary.get("clinical_significance", ""))
+                ),
             }
             variants.append(variant_info)
 
@@ -569,9 +570,7 @@ def clinvar_variant_lookup(
         }
 
     except Exception as e:
-        return format_entrez_error(
-            e, {"gene": gene, "variant": variant, "condition": condition}
-        )
+        return format_entrez_error(e, {"gene": gene, "variant": variant, "condition": condition})
 
 
 def gene_info_fetch(
@@ -657,15 +656,19 @@ def gene_info_fetch(
             "symbol": str(gene_summary.get("name", "")),
             "name": str(gene_summary.get("description", "")),
             "summary": str(gene_summary.get("summary", "")),
-            "organism": str(gene_summary.get("organism", {}).get("scientificname", ""))
-            if isinstance(gene_summary.get("organism"), dict)
-            else str(gene_summary.get("organism", "")),
+            "organism": (
+                str(gene_summary.get("organism", {}).get("scientificname", ""))
+                if isinstance(gene_summary.get("organism"), dict)
+                else str(gene_summary.get("organism", ""))
+            ),
             "chromosome": str(gene_summary.get("chromosome", "")),
             "map_location": str(gene_summary.get("maplocation", "")),
             "gene_type": str(gene_summary.get("genetype", "")),
-            "aliases": gene_summary.get("otheraliases", "").split(", ")
-            if gene_summary.get("otheraliases")
-            else [],
+            "aliases": (
+                gene_summary.get("otheraliases", "").split(", ")
+                if gene_summary.get("otheraliases")
+                else []
+            ),
         }
 
         return gene_info
@@ -884,9 +887,11 @@ def variant_literature_link(
             article = {
                 "pmid": str(summary.get("uid", "")),
                 "title": str(summary.get("title", "")),
-                "authors": summary.get("authors", [{}])[0].get("name", "")
-                if summary.get("authors")
-                else "",
+                "authors": (
+                    summary.get("authors", [{}])[0].get("name", "")
+                    if summary.get("authors")
+                    else ""
+                ),
                 "journal": str(summary.get("fulljournalname", "")),
                 "year": str(summary.get("pubdate", ""))[:4],
             }
