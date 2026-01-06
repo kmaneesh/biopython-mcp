@@ -7,7 +7,7 @@ from Bio import Entrez
 from fastmcp import FastMCP
 
 # Import all tool modules
-from biopython_mcp import alignment, database, phylo, sequence, structure
+from biopython_mcp import alignment, database, phylo, pubmed_utils, sequence, structure
 
 # Initialize FastMCP server
 mcp = FastMCP("biopython-mcp")
@@ -52,6 +52,11 @@ mcp.tool()(database.clinvar_variant_lookup)
 mcp.tool()(database.gene_info_fetch)
 mcp.tool()(database.pubmed_search)
 mcp.tool()(database.variant_literature_link)
+
+# Register PubMed Central full-text tools
+mcp.tool()(pubmed_utils.pubmed_fetch)
+mcp.tool()(pubmed_utils.get_pmc_url)
+mcp.tool()(pubmed_utils.get_doi_url)
 
 # Register structure tools
 mcp.tool()(structure.fetch_pdb_structure)

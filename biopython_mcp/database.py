@@ -782,6 +782,16 @@ def pubmed_search(
             pub_date = article_info.get("Journal", {}).get("JournalIssue", {}).get("PubDate", {})
             year = int(pub_date.get("Year", 0)) if pub_date.get("Year") else 0
 
+            # Extract DOI and PMC ID from ArticleIdList
+            doi = None
+            pmc_id = None
+            article_ids = article_data.get("PubmedData", {}).get("ArticleIdList", [])
+            for article_id in article_ids:
+                if article_id.attributes.get("IdType") == "doi":
+                    doi = str(article_id)
+                elif article_id.attributes.get("IdType") == "pmc":
+                    pmc_id = str(article_id)
+
             article = {
                 "pmid": str(medline["PMID"]),
                 "title": str(article_info.get("ArticleTitle", "No title")),
@@ -792,6 +802,8 @@ def pubmed_search(
                 "date": f"{pub_date.get('Year', '')}-{pub_date.get('Month', '')}-{pub_date.get('Day', '')}".strip(
                     "-"
                 ),
+                "doi": doi,
+                "pmc_id": pmc_id,
             }
             articles.append(article)
 
