@@ -54,6 +54,10 @@ mcp.tool()(database.gene_info_fetch)
 mcp.tool()(database.pubmed_search)
 mcp.tool()(database.variant_literature_link)
 
+# Register Phase 3 advanced tools
+mcp.tool()(database.entrez_link)
+mcp.tool()(database.clear_entrez_cache)
+
 # Register PubMed Central full-text tools
 mcp.tool()(pubmed.pubmed_fetch)
 mcp.tool()(pubmed.get_pmc_url)

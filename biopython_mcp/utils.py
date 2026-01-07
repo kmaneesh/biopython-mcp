@@ -1,6 +1,7 @@
 """Common utility functions for BioPython MCP server."""
 
 import os
+import pathlib
 import re
 import time
 from collections.abc import Generator
@@ -284,3 +285,139 @@ def format_entrez_error(exception: Exception, context: dict[str, Any]) -> dict[s
         "rate_limit_exceeded": rate_limit_exceeded,
         **context,
     }
+
+
+# Caching utilities
+def _get_cache_dir() -> pathlib.Path:
+    """
+    Get or create the cache directory.
+
+    Returns:
+        Path to cache directory (~/.biopython-mcp/cache/)
+    """
+    cache_dir = pathlib.Path.home() / ".biopython-mcp" / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+
+def _get_cache_key(database: str, operation: str, params: dict[str, Any]) -> str:
+    """
+    Generate a cache key from database, operation, and parameters.
+
+    Args:
+        database: Database name
+        operation: Operation name (e.g., 'search', 'fetch', 'summary')
+        params: Parameters dictionary
+
+    Returns:
+        SHA256 hash as hexadecimal string
+    """
+    import hashlib
+    import json
+
+    # Create a consistent string representation
+    cache_data = {
+        "database": database,
+        "operation": operation,
+        "params": params,
+    }
+    cache_string = json.dumps(cache_data, sort_keys=True)
+    return hashlib.sha256(cache_string.encode()).hexdigest()
+
+
+def get_cached_result(
+    database: str, operation: str, params: dict[str, Any], ttl: int = 3600
+) -> dict[str, Any] | None:
+    """
+    Get cached result if it exists and is not expired.
+
+    Args:
+        database: Database name
+        operation: Operation name
+        params: Parameters used for the query
+        ttl: Time to live in seconds (default: 3600 = 1 hour)
+
+    Returns:
+        Cached result dictionary or None if not found/expired
+    """
+    import json
+
+    cache_dir = _get_cache_dir()
+    cache_key = _get_cache_key(database, operation, params)
+    cache_file = cache_dir / database / f"{cache_key}.json"
+
+    if not cache_file.exists():
+        return None
+
+    # Check if cache is expired
+    cache_age = time.time() - cache_file.stat().st_mtime
+    if cache_age > ttl:
+        # Cache expired, remove it
+        cache_file.unlink()
+        return None
+
+    try:
+        with open(cache_file) as f:
+            return json.load(f)  # type: ignore[no-any-return]
+    except Exception:
+        return None
+
+
+def set_cached_result(
+    database: str, operation: str, params: dict[str, Any], data: dict[str, Any]
+) -> None:
+    """
+    Store result in cache.
+
+    Args:
+        database: Database name
+        operation: Operation name
+        params: Parameters used for the query
+        data: Result data to cache
+    """
+    import json
+
+    cache_dir = _get_cache_dir()
+    db_cache_dir = cache_dir / database
+    db_cache_dir.mkdir(parents=True, exist_ok=True)
+
+    cache_key = _get_cache_key(database, operation, params)
+    cache_file = db_cache_dir / f"{cache_key}.json"
+
+    try:
+        with open(cache_file, "w") as f:
+            json.dump(data, f, indent=2)
+    except Exception:
+        pass  # Silently fail if caching doesn't work
+
+
+def clear_cache(database: str = "") -> int:
+    """
+    Clear cache files for a database or all databases.
+
+    Args:
+        database: Database name to clear (empty string clears all)
+
+    Returns:
+        Number of cache files removed
+    """
+
+    cache_dir = _get_cache_dir()
+    count = 0
+
+    if database:
+        # Clear specific database cache
+        db_cache_dir = cache_dir / database
+        if db_cache_dir.exists():
+            for cache_file in db_cache_dir.glob("*.json"):
+                cache_file.unlink()
+                count += 1
+    else:
+        # Clear all database caches
+        for db_dir in cache_dir.iterdir():
+            if db_dir.is_dir():
+                for cache_file in db_dir.glob("*.json"):
+                    cache_file.unlink()
+                    count += 1
+
+    return count
