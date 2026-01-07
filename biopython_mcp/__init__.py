@@ -1,6 +1,6 @@
 """BioPython MCP Server - Model Context Protocol interface for BioPython."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from biopython_mcp.server import mcp
 
