@@ -50,6 +50,10 @@ jobs:
         file: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
+        fail_ci_if_error: false
+        verbose: true
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
 
   lint:
