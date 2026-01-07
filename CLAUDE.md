@@ -128,6 +128,14 @@ When creating pull requests:
 - If `gh` CLI is not installed, provide instructions for creating PR via GitHub web interface
 - Always provide the markdown file for easy copy-paste
 
+### Git Commit Messages
+
+**IMPORTANT**: Do NOT include co-author text in commit messages.
+
+- ❌ Do NOT add: `Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>`
+- ✅ Keep commit messages clean and concise
+- Use conventional commit format: `TYPE: description` (e.g., `FEAT:`, `FIX:`, `DOCS:`, `REFACTOR:`)
+
 ## Important Notes
 
 ### NCBI Database Access
