@@ -136,7 +136,11 @@ Add to your Claude Desktop configuration file:
   "mcpServers": {
     "biopython": {
       "command": "uvx",
-      "args": ["biopython-mcp"]
+      "args": ["biopython-mcp"],
+      "env": {
+        "NCBI_EMAIL": "you@example.com",
+        "NCBI_API_KEY": "your_ncbi_api_key"
+      }
     }
   }
 }
@@ -147,7 +151,11 @@ Add to your Claude Desktop configuration file:
 {
   "mcpServers": {
     "biopython": {
-      "command": "biopython-mcp"
+      "command": "biopython-mcp",
+      "env": {
+        "NCBI_EMAIL": "you@example.com",
+        "NCBI_API_KEY": "your_ncbi_api_key"
+      }
     }
   }
 }
@@ -159,7 +167,11 @@ Add to your Claude Desktop configuration file:
   "mcpServers": {
     "biopython": {
       "command": "uvx",
-      "args": ["--from", "/path/to/biopython-mcp", "biopython-mcp"]
+      "args": ["--from", "/path/to/biopython-mcp", "biopython-mcp"],
+      "env": {
+        "NCBI_EMAIL": "you@example.com",
+        "NCBI_API_KEY": "your_ncbi_api_key"
+      }
     }
   }
 }
