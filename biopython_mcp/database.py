@@ -595,7 +595,9 @@ def clinvar_variant_lookup(
         query = " AND ".join(query_parts)
 
         # Search ClinVar using generic tool
-        search_result = entrez_search("clinvar", query, max_results=max_results, use_cache=use_cache)
+        search_result = entrez_search(
+            "clinvar", query, max_results=max_results, use_cache=use_cache
+        )
 
         if not search_result["success"]:
             return search_result
@@ -836,7 +838,9 @@ def pubmed_search(
             query = f"({query}) AND {year_query}"
 
         # Search PubMed using generic tool
-        search_result = entrez_search("pubmed", query, max_results=max_results, sort=sort, use_cache=use_cache)
+        search_result = entrez_search(
+            "pubmed", query, max_results=max_results, sort=sort, use_cache=use_cache
+        )
 
         if not search_result["success"]:
             return search_result
