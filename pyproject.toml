@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "biopython-mcp"
-version = "0.1.0"
+version = "0.1.2"
 description = "Model Context Protocol server providing BioPython library capabilities for biological sequence analysis, alignment, database access, and structural bioinformatics"
 readme = "README.md"
 requires-python = ">=3.10"

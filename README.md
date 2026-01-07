@@ -1,6 +1,9 @@
 # BioPython MCP Server
 
 [![CI](https://github.com/kmaneesh/biopython-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/kmaneesh/biopython-mcp/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/kmaneesh/biopython-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/kmaneesh/biopython-mcp)
+[![PyPI version](https://img.shields.io/pypi/v/biopython-mcp.svg)](https://pypi.org/project/biopython-mcp/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/biopython-mcp.svg)](https://pypi.org/project/biopython-mcp/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
@@ -341,11 +344,36 @@ Run tests with coverage:
 pytest --cov=biopython_mcp --cov-report=term-missing
 ```
 
+Generate coverage reports (HTML and XML):
+
+```bash
+pytest --cov=biopython_mcp --cov-report=html --cov-report=xml --cov-report=term-missing
+```
+
+View HTML coverage report:
+
+```bash
+open htmlcov/index.html  # macOS
+xdg-open htmlcov/index.html  # Linux
+start htmlcov/index.html  # Windows
+```
+
 Run type checking:
 
 ```bash
 mypy biopython_mcp/
 ```
+
+### CI/CD Coverage
+
+The project uses GitHub Actions for continuous integration with automatic coverage reporting to [Codecov](https://codecov.io/gh/kmaneesh/biopython-mcp).
+
+Coverage is automatically uploaded when:
+- Tests run on Ubuntu with Python 3.11
+- Pull requests are created or updated
+- Commits are pushed to `main` or `develop` branches
+
+**Note for Contributors**: Coverage reports are publicly available. The CI workflow uses the `CODECOV_TOKEN` secret for authenticated uploads. Repository maintainers should configure this secret in GitHub repository settings.
 
 ## License
 

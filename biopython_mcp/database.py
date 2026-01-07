@@ -263,7 +263,11 @@ def entrez_info(database: str = "") -> dict[str, Any]:
 
 
 def entrez_search(
-    database: str, query: str, max_results: int = 20, sort: str = "relevance"
+    database: str,
+    query: str,
+    max_results: int = 20,
+    sort: str = "relevance",
+    use_cache: bool = True,
 ) -> dict[str, Any]:
     """
     Search any NCBI Entrez database using query syntax.
@@ -273,6 +277,7 @@ def entrez_search(
         query: Search query using Entrez syntax (see module docstring for examples)
         max_results: Maximum number of results to return (default: 20, max: 10000)
         sort: Sort order - 'relevance', 'pub_date', 'Author', etc. (default: 'relevance')
+        use_cache: Whether to use cached results (default: True, TTL: 1 hour)
 
     Returns:
         Dictionary containing:
@@ -281,6 +286,7 @@ def entrez_search(
         - total_found: Total number of matches in database
         - query: Original query string
         - database: Database searched
+        - cached: Whether result was from cache (if use_cache=True)
 
     Examples:
         >>> entrez_search("pubmed", "BRCA1 AND breast cancer", max_results=10)
@@ -292,8 +298,25 @@ def entrez_search(
         - Uses NCBI Entrez query syntax with field tags and Boolean operators
         - Rate limited to 3 req/sec (or 10 req/sec with API key)
         - See module docstring for comprehensive query syntax examples
+        - Cached results have 1 hour TTL to balance freshness and API usage
     """
     try:
+        from biopython_mcp.utils import get_cached_result, set_cached_result
+
+        # Check cache if enabled
+        cache_params = {
+            "query": query,
+            "max_results": max_results,
+            "sort": sort,
+        }
+
+        if use_cache:
+            cached = get_cached_result(database, "search", cache_params, ttl=3600)
+            if cached:
+                cached["cached"] = True
+                return cached
+
+        # Perform search
         with entrez_rate_limit():
             handle = Entrez.esearch(
                 db=database, term=query, retmax=min(max_results, 10000), sort=sort
@@ -301,7 +324,7 @@ def entrez_search(
             result = Entrez.read(handle)
             handle.close()
 
-        return {
+        response = {
             "success": True,
             "database": database,
             "query": query,
@@ -309,13 +332,24 @@ def entrez_search(
             "count": len(result["IdList"]),
             "total_found": int(result["Count"]),
             "sort": sort,
+            "cached": False,
         }
+
+        # Cache successful result
+        if use_cache:
+            set_cached_result(database, "search", cache_params, response)
+
+        return response
     except Exception as e:
         return format_entrez_error(e, {"database": database, "query": query})
 
 
 def entrez_fetch(
-    database: str, ids: str | list[str], rettype: str = "xml", retmode: str = "xml"
+    database: str,
+    ids: str | list[str],
+    rettype: str = "xml",
+    retmode: str = "xml",
+    use_cache: bool = True,
 ) -> dict[str, Any]:
     """
     Fetch full records from NCBI Entrez by UID.
@@ -325,6 +359,7 @@ def entrez_fetch(
         ids: Single ID, comma-separated string, or list of IDs
         rettype: Return type - 'xml', 'gb', 'fasta', 'abstract', etc. (default: 'xml')
         retmode: Return mode - 'xml', 'text', 'json' (default: 'xml')
+        use_cache: Whether to use cached results (default: True, TTL: 7 days)
 
     Returns:
         Dictionary containing:
@@ -333,6 +368,7 @@ def entrez_fetch(
         - count: Number of records retrieved
         - format: Return type/mode used
         - database: Database queried
+        - cached: Whether result was from cache (if use_cache=True)
 
     Examples:
         >>> entrez_fetch("pubmed", "12345678", rettype="abstract", retmode="xml")
@@ -346,8 +382,11 @@ def entrez_fetch(
         - XML mode returns parsed Python dict/list structure
         - Text mode returns raw string data
         - Rate limited to 3 req/sec (or 10 req/sec with API key)
+        - Cached results have 7 day TTL since record data is relatively static
     """
     try:
+        from biopython_mcp.utils import get_cached_result, set_cached_result
+
         id_list = parse_ids(ids)
 
         if not id_list:
@@ -355,6 +394,20 @@ def entrez_fetch(
                 ValueError("No valid IDs provided"), {"database": database, "ids": ids}
             )
 
+        # Check cache if enabled
+        cache_params = {
+            "ids": sorted(id_list),  # Sort for consistent cache keys
+            "rettype": rettype,
+            "retmode": retmode,
+        }
+
+        if use_cache:
+            cached = get_cached_result(database, "fetch", cache_params, ttl=604800)  # 7 days
+            if cached:
+                cached["cached"] = True
+                return cached
+
+        # Perform fetch
         with entrez_rate_limit():
             handle = Entrez.efetch(db=database, id=id_list, rettype=rettype, retmode=retmode)
 
@@ -363,19 +416,26 @@ def entrez_fetch(
 
             handle.close()
 
-        return {
+        response = {
             "success": True,
             "database": database,
             "ids": id_list,
             "count": len(id_list),
             "format": f"{rettype}/{retmode}",
             "data": data,
+            "cached": False,
         }
+
+        # Cache successful result
+        if use_cache:
+            set_cached_result(database, "fetch", cache_params, response)
+
+        return response
     except Exception as e:
         return format_entrez_error(e, {"database": database, "ids": str(ids)[:100]})
 
 
-def entrez_summary(database: str, ids: str | list[str]) -> dict[str, Any]:
+def entrez_summary(database: str, ids: str | list[str], use_cache: bool = True) -> dict[str, Any]:
     """
     Get document summaries (DocSums) from NCBI Entrez.
 
@@ -385,6 +445,7 @@ def entrez_summary(database: str, ids: str | list[str]) -> dict[str, Any]:
     Args:
         database: Database name (e.g., 'pubmed', 'gene', 'clinvar', 'nucleotide')
         ids: Single ID, comma-separated string, or list of IDs
+        use_cache: Whether to use cached results (default: True, TTL: 7 days)
 
     Returns:
         Dictionary containing:
@@ -392,6 +453,7 @@ def entrez_summary(database: str, ids: str | list[str]) -> dict[str, Any]:
         - ids: List of IDs requested
         - count: Number of summaries returned
         - database: Database queried
+        - cached: Whether result was from cache (if use_cache=True)
 
     Examples:
         >>> entrez_summary("pubmed", "12345678")
@@ -404,8 +466,11 @@ def entrez_summary(database: str, ids: str | list[str]) -> dict[str, Any]:
         - Fields returned vary by database type
         - Rate limited to 3 req/sec (or 10 req/sec with API key)
         - Use this instead of fetch when you don't need full sequence/text
+        - Cached results have 7 day TTL since summary data is relatively static
     """
     try:
+        from biopython_mcp.utils import get_cached_result, set_cached_result
+
         id_list = parse_ids(ids)
 
         if not id_list:
@@ -413,6 +478,18 @@ def entrez_summary(database: str, ids: str | list[str]) -> dict[str, Any]:
                 ValueError("No valid IDs provided"), {"database": database, "ids": ids}
             )
 
+        # Check cache if enabled
+        cache_params = {
+            "ids": sorted(id_list),  # Sort for consistent cache keys
+        }
+
+        if use_cache:
+            cached = get_cached_result(database, "summary", cache_params, ttl=604800)  # 7 days
+            if cached:
+                cached["cached"] = True
+                return cached
+
+        # Perform summary fetch
         with entrez_rate_limit():
             handle = Entrez.esummary(db=database, id=id_list)
             result = Entrez.read(handle)
@@ -422,13 +499,20 @@ def entrez_summary(database: str, ids: str | list[str]) -> dict[str, Any]:
         # Normalize to always return a list
         summaries = result if isinstance(result, list) else [result]
 
-        return {
+        response = {
             "success": True,
             "database": database,
             "ids": id_list,
             "count": len(summaries),
             "summaries": summaries,
+            "cached": False,
         }
+
+        # Cache successful result
+        if use_cache:
+            set_cached_result(database, "summary", cache_params, response)
+
+        return response
     except Exception as e:
         return format_entrez_error(e, {"database": database, "ids": str(ids)[:100]})
 
@@ -440,6 +524,7 @@ def clinvar_variant_lookup(
     condition: str = "",
     significance: str = "",
     max_results: int = 20,
+    use_cache: bool = True,
 ) -> dict[str, Any]:
     """
     Search ClinVar for genetic variants and their clinical interpretations.
@@ -458,6 +543,7 @@ def clinvar_variant_lookup(
             - "likely_benign"
             - "uncertain"
         max_results: Maximum results to return (default: 20)
+        use_cache: Whether to use cached results (default: True)
 
     Returns:
         Dictionary containing:
@@ -465,6 +551,7 @@ def clinvar_variant_lookup(
         - count: Number of variants returned
         - total_found: Total matches in ClinVar
         - query_terms: Dictionary of search terms used
+        - cached: Whether result was from cache (if use_cache=True)
 
     Examples:
         >>> clinvar_variant_lookup(gene="BRCA1", significance="pathogenic", max_results=5)
@@ -475,6 +562,7 @@ def clinvar_variant_lookup(
         - At least one search parameter must be provided
         - Multiple parameters are combined with AND logic
         - Rate limited (3 req/sec or 10 req/sec with API key)
+        - Cached results inherit TTL from underlying entrez_search and entrez_summary calls
     """
     try:
         # Build query from parameters
@@ -507,7 +595,9 @@ def clinvar_variant_lookup(
         query = " AND ".join(query_parts)
 
         # Search ClinVar using generic tool
-        search_result = entrez_search("clinvar", query, max_results=max_results)
+        search_result = entrez_search(
+            "clinvar", query, max_results=max_results, use_cache=use_cache
+        )
 
         if not search_result["success"]:
             return search_result
@@ -525,10 +615,11 @@ def clinvar_variant_lookup(
                     "significance": significance,
                 },
                 "query": query,
+                "cached": search_result.get("cached", False),
             }
 
         # Get summaries using generic tool
-        summary_result = entrez_summary("clinvar", search_result["ids"])
+        summary_result = entrez_summary("clinvar", search_result["ids"], use_cache=use_cache)
 
         if not summary_result["success"]:
             return summary_result
@@ -567,6 +658,7 @@ def clinvar_variant_lookup(
                 "significance": significance,
             },
             "query": query,
+            "cached": search_result.get("cached", False) or summary_result.get("cached", False),
         }
 
     except Exception as e:
@@ -574,7 +666,10 @@ def clinvar_variant_lookup(
 
 
 def gene_info_fetch(
-    gene_symbol: str = "", gene_id: str = "", organism: str = "Homo sapiens"
+    gene_symbol: str = "",
+    gene_id: str = "",
+    organism: str = "Homo sapiens",
+    use_cache: bool = True,
 ) -> dict[str, Any]:
     """
     Fetch comprehensive gene information from NCBI Gene database.
@@ -586,6 +681,7 @@ def gene_info_fetch(
         gene_symbol: Gene symbol (e.g., "BRCA1", "TP53")
         gene_id: NCBI Gene ID (e.g., "672" for BRCA1)
         organism: Organism name (default: "Homo sapiens")
+        use_cache: Whether to use cached results (default: True)
 
     Returns:
         Dictionary containing:
@@ -597,6 +693,7 @@ def gene_info_fetch(
         - chromosome: Chromosomal location
         - aliases: List of gene aliases
         - type: Gene type (protein-coding, ncRNA, etc.)
+        - cached: Whether result was from cache (if use_cache=True)
 
     Examples:
         >>> gene_info_fetch(gene_symbol="BRCA1")
@@ -607,6 +704,7 @@ def gene_info_fetch(
         - Provide either gene_symbol or gene_id (gene_id takes precedence)
         - Organism filter helps disambiguate gene symbols
         - Rate limited (3 req/sec or 10 req/sec with API key)
+        - Cached results inherit TTL from underlying entrez_search and entrez_summary calls
     """
     try:
         if not gene_symbol and not gene_id:
@@ -617,7 +715,7 @@ def gene_info_fetch(
 
         # If gene_id provided, fetch directly
         if gene_id:
-            summary_result = entrez_summary("gene", gene_id)
+            summary_result = entrez_summary("gene", gene_id, use_cache=use_cache)
             if not summary_result["success"]:
                 return summary_result
 
@@ -629,10 +727,11 @@ def gene_info_fetch(
                 }
 
             gene_summary = summary_result["summaries"][0]
+            cached = summary_result.get("cached", False)
         else:
             # Search by symbol + organism
             query = f"{gene_symbol}[Gene Name] AND {organism}[Organism]"
-            search_result = entrez_search("gene", query, max_results=1)
+            search_result = entrez_search("gene", query, max_results=1, use_cache=use_cache)
 
             if not search_result["success"] or not search_result["ids"]:
                 return {
@@ -643,11 +742,12 @@ def gene_info_fetch(
                 }
 
             # Get summary of first result
-            summary_result = entrez_summary("gene", search_result["ids"][0])
+            summary_result = entrez_summary("gene", search_result["ids"][0], use_cache=use_cache)
             if not summary_result["success"]:
                 return summary_result
 
             gene_summary = summary_result["summaries"][0]
+            cached = search_result.get("cached", False) or summary_result.get("cached", False)
 
         # Extract and structure gene information
         gene_info = {
@@ -669,6 +769,7 @@ def gene_info_fetch(
                 if gene_summary.get("otheraliases")
                 else []
             ),
+            "cached": cached,
         }
 
         return gene_info
@@ -685,6 +786,7 @@ def pubmed_search(
     sort: str = "relevance",
     year_start: int = 0,
     year_end: int = 0,
+    use_cache: bool = True,
 ) -> dict[str, Any]:
     """
     Search PubMed with enhanced metadata extraction.
@@ -698,6 +800,7 @@ def pubmed_search(
         sort: Sort order - "relevance", "pub_date", "first_author" (default: "relevance")
         year_start: Filter by publication year start (e.g., 2020)
         year_end: Filter by publication year end (e.g., 2024)
+        use_cache: Whether to use cached results (default: True, TTL: 1 hour)
 
     Returns:
         Dictionary containing:
@@ -709,8 +812,11 @@ def pubmed_search(
             - journal: Journal name
             - year: Publication year
             - date: Publication date
+            - doi: DOI (if available)
+            - pmc_id: PMC ID (if available)
         - count: Number of articles returned
         - total_found: Total matches in PubMed
+        - cached: Whether result was from cache (if use_cache=True)
 
     Examples:
         >>> pubmed_search("BRCA1 AND breast cancer", max_results=5)
@@ -721,6 +827,7 @@ def pubmed_search(
         - Uses comprehensive Entrez query syntax
         - Returns full abstracts when available
         - Rate limited (3 req/sec or 10 req/sec with API key)
+        - Cached results have 1 hour TTL to balance freshness and API usage
     """
     try:
         # Add year filters to query if provided
@@ -731,7 +838,9 @@ def pubmed_search(
             query = f"({query}) AND {year_query}"
 
         # Search PubMed using generic tool
-        search_result = entrez_search("pubmed", query, max_results=max_results, sort=sort)
+        search_result = entrez_search(
+            "pubmed", query, max_results=max_results, sort=sort, use_cache=use_cache
+        )
 
         if not search_result["success"]:
             return search_result
@@ -743,11 +852,12 @@ def pubmed_search(
                 "count": 0,
                 "total_found": 0,
                 "query": query,
+                "cached": search_result.get("cached", False),
             }
 
         # Fetch article details using generic tool
         fetch_result = entrez_fetch(
-            "pubmed", search_result["ids"], rettype="abstract", retmode="xml"
+            "pubmed", search_result["ids"], rettype="abstract", retmode="xml", use_cache=use_cache
         )
 
         if not fetch_result["success"]:
@@ -814,6 +924,7 @@ def pubmed_search(
             "total_found": search_result["total_found"],
             "query": query,
             "sort": sort,
+            "cached": search_result.get("cached", False) or fetch_result.get("cached", False),
         }
 
     except Exception as e:
@@ -920,3 +1031,141 @@ def variant_literature_link(
 
     except Exception as e:
         return format_entrez_error(e, {"variant_id": variant_id, "source_db": source_db})
+
+
+# Phase 3: Advanced Tools
+def entrez_link(
+    source_db: str,
+    target_db: str,
+    ids: str | list[str],
+    link_name: str = "",
+) -> dict[str, Any]:
+    """
+    Find related records across NCBI databases using ELink.
+
+    This tool discovers relationships between records in different databases,
+    such as finding PubMed articles related to genes, or nucleotide sequences
+    related to proteins.
+
+    Args:
+        source_db: Source database (e.g., 'gene', 'protein', 'clinvar')
+        target_db: Target database to link to (e.g., 'pubmed', 'nucleotide')
+        ids: Single ID, comma-separated string, or list of IDs from source_db
+        link_name: Specific link type (optional, empty = all available links)
+
+    Returns:
+        Dictionary containing:
+        - source_db: Source database name
+        - target_db: Target database name
+        - source_ids: List of source IDs queried
+        - linked_ids: Dict mapping source IDs to lists of linked target IDs
+        - total_links: Total number of links found
+        - link_name: Link type used (if specified)
+
+    Examples:
+        >>> entrez_link("gene", "pubmed", "672")  # BRCA1 gene to PubMed
+        >>> entrez_link("protein", "nucleotide", ["NP_000198.1", "NP_001121"])
+        >>> entrez_link("clinvar", "pubmed", "12345", link_name="clinvar_pubmed")
+
+    Notes:
+        - Discovers cross-database relationships automatically
+        - Use entrez_info() to see available link names for databases
+        - Rate limited (3 req/sec or 10 req/sec with API key)
+        - Different databases support different link types
+    """
+    try:
+        from biopython_mcp.utils import parse_ids
+
+        id_list = parse_ids(ids)
+
+        if not id_list:
+            return format_entrez_error(
+                ValueError("No valid IDs provided"),
+                {"source_db": source_db, "target_db": target_db},
+            )
+
+        linked_ids: dict[str, list[str]] = {}
+        total_links = 0
+
+        # Link each ID individually for better tracking
+        for source_id in id_list:
+            with entrez_rate_limit():
+                if link_name:
+                    handle = Entrez.elink(
+                        dbfrom=source_db, db=target_db, id=source_id, linkname=link_name
+                    )
+                else:
+                    handle = Entrez.elink(dbfrom=source_db, db=target_db, id=source_id)
+
+                result = Entrez.read(handle)
+                handle.close()
+
+            # Extract linked IDs for this source ID
+            source_links = []
+            if result and result[0].get("LinkSetDb"):
+                for link_set in result[0]["LinkSetDb"]:
+                    if link_set.get("Link"):
+                        source_links.extend([link["Id"] for link in link_set["Link"]])
+
+            linked_ids[source_id] = source_links
+            total_links += len(source_links)
+
+        return {
+            "success": True,
+            "source_db": source_db,
+            "target_db": target_db,
+            "source_ids": id_list,
+            "linked_ids": linked_ids,
+            "total_links": total_links,
+            "link_name": link_name if link_name else "all",
+        }
+
+    except Exception as e:
+        return format_entrez_error(
+            e, {"source_db": source_db, "target_db": target_db, "ids": str(ids)[:100]}
+        )
+
+
+def clear_entrez_cache(database: str = "") -> dict[str, Any]:
+    """
+    Clear cached Entrez results.
+
+    The caching system stores Entrez query results to reduce API calls and
+    improve response times. Use this tool to clear stale cache data.
+
+    Args:
+        database: Database name to clear (empty string clears all databases)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether operation succeeded
+        - cleared: Number of cache files removed
+        - database: Database cleared (or "all" if empty string)
+        - cache_location: Path to cache directory
+
+    Examples:
+        >>> clear_entrez_cache()  # Clear all caches
+        >>> clear_entrez_cache("pubmed")  # Clear only PubMed cache
+        >>> clear_entrez_cache("gene")  # Clear only Gene cache
+
+    Notes:
+        - Caching is optional and controlled via use_cache parameter
+        - Default TTL: 1 hour for searches, 7 days for fetches
+        - Cache stored in ~/.biopython-mcp/cache/
+        - Cached data includes search results and summaries
+    """
+    try:
+        from biopython_mcp.utils import _get_cache_dir, clear_cache
+
+        cache_dir = _get_cache_dir()
+        count = clear_cache(database)
+
+        return {
+            "success": True,
+            "cleared": count,
+            "database": database if database else "all",
+            "cache_location": str(cache_dir),
+        }
+
+    except Exception as e:
+        return {"success": False, "error": str(e), "database": database}
