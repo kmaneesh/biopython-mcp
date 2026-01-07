@@ -62,6 +62,7 @@ mcp.tool()(database.clear_entrez_cache)
 mcp.tool()(pubmed.pubmed_fetch)
 mcp.tool()(pubmed.get_pmc_url)
 mcp.tool()(pubmed.get_doi_url)
+mcp.tool()(pubmed.pubmed_review)
 
 # Register structure tools
 mcp.tool()(structure.fetch_pdb_structure)
