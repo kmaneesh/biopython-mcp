@@ -180,7 +180,7 @@ def get_doi_url(doi: str) -> str:
 def pubmed_review(
     query: str,
     output_path: str,
-    format: str = "summary",
+    format: str = "full",
     max_results: int = 25,
     storage: str = "obsidian",
     sort: str = "pub_date",
@@ -197,7 +197,7 @@ def pubmed_review(
         query: PubMed search query (supports full Entrez syntax including year filters)
             Example: "BRCA1 AND breast cancer AND 2020:2024[PDAT]"
         output_path: Path to output markdown file (must end with .md)
-        format: Output format - "full", "summary", or "minimal" (default: "summary")
+        format: Output format - "full", "summary", or "minimal" (default: "full")
             - "full": Complete abstracts for all articles
             - "summary": Title + key findings + metadata (50-100 words per article)
             - "minimal": Title + PMID + PMC + DOI links only
