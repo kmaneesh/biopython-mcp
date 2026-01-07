@@ -20,9 +20,18 @@ PMC access should respect NCBI rate limits (same as Entrez):
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import httpx
+
+
+class ReviewStats(TypedDict):
+    """Statistics tracking for pubmed_review."""
+
+    pmc_count: int
+    doi_count: int
+    years: list[int]
+    journals: dict[str, int]
 
 
 def pubmed_fetch(pmc_id: str, format: str = "xml", timeout: int = 30) -> dict[str, Any]:
@@ -305,7 +314,7 @@ def pubmed_review(
             }
 
         # Statistics tracking
-        stats = {
+        stats: ReviewStats = {
             "pmc_count": 0,
             "doi_count": 0,
             "years": [],
