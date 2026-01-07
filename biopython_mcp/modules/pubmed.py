@@ -17,7 +17,6 @@ PMC access should respect NCBI rate limits (same as Entrez):
 - 10 requests/second with API key
 """
 
-import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -290,9 +289,7 @@ def pubmed_review(
         output_file = Path(output_path)
 
         # Create parent directories
-        if storage == "obsidian":
-            output_file.parent.mkdir(parents=True, exist_ok=True)
-        elif storage == "file":
+        if storage in ("obsidian", "file"):
             output_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Check write permissions
@@ -366,7 +363,6 @@ def pubmed_review(
                         title = summary.get("Title", "Untitled")
                         authors = summary.get("AuthorList", [])
                         journal = summary.get("FullJournalName", summary.get("Source", "Unknown"))
-                        pub_date = summary.get("PubDate", "")
                         year = summary.get("PubDate", "")[:4] if summary.get("PubDate") else "N/A"
 
                         # Extract IDs
