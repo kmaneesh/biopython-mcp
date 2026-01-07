@@ -141,3 +141,4 @@ Thumbs.db
 *.genbank
 test_data/
 temp/
+TEST_COVERAGE_STATUS.md
