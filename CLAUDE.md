@@ -35,14 +35,20 @@ pytest tests/test_sequence.py::TestTranslateSequence::test_translate_simple_dna
 
 ### Code Quality
 ```bash
-# Format code
-black src/ tests/
+# Format code (REQUIRED before commit)
+black biopython_mcp/ tests/
 
 # Lint code
-ruff src/ tests/
+ruff check biopython_mcp/ tests/
 
 # Type checking
 mypy biopython_mcp/
+```
+
+**IMPORTANT**: Always run `black` before committing to ensure code passes CI lint checks.
+Quick pre-commit check:
+```bash
+black biopython_mcp/ tests/ && ruff check biopython_mcp/ tests/
 ```
 
 ## Architecture
