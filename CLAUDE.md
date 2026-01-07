@@ -88,6 +88,40 @@ Common validation functions in `src/utils.py` are used across modules:
 - `src/phylo.py` - Phylogenetic analysis (tree building, distance matrices)
 - `src/utils.py` - Shared utility functions
 
+## Workflow Guidelines
+
+### Pull Request Creation
+
+When creating pull requests:
+
+1. **Always output PR descriptions as markdown files** instead of in conversation
+   - Create a file like `PR_DESCRIPTION.md` in the repository root
+   - This saves tokens and preserves formatting when copy-pasting to GitHub
+   - The user can easily copy from the file without formatting issues
+
+2. **PR description should include:**
+   - Summary of changes
+   - New features with checkmarks (✅, 🆕)
+   - Breaking changes (if any)
+   - Testing notes
+   - Commit list
+   - Checklist for reviewers
+
+3. **Branch naming convention:**
+   - Use descriptive names: `feat/`, `fix/`, `docs/`, `refactor/`
+   - Example: `feat/entrez-caching-and-link-tools`
+
+4. **Before creating PR:**
+   - Ensure branch is pushed to remote
+   - All tests pass locally
+   - Documentation is updated
+   - Version is bumped if needed
+
+### Git CLI Tools
+
+- If `gh` CLI is not installed, provide instructions for creating PR via GitHub web interface
+- Always provide the markdown file for easy copy-paste
+
 ## Important Notes
 
 ### NCBI Database Access
