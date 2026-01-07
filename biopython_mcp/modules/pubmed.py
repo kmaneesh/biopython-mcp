@@ -175,8 +175,6 @@ def pubmed_review(
     format: str = "summary",
     max_results: int = 25,
     storage: str = "obsidian",
-    year_start: int | None = None,
-    year_end: int | None = None,
     sort: str = "pub_date",
 ) -> dict[str, Any]:
     """
@@ -188,7 +186,8 @@ def pubmed_review(
     of tokens compared to loading full content.
 
     Args:
-        query: PubMed search query (supports full Entrez syntax)
+        query: PubMed search query (supports full Entrez syntax including year filters)
+            Example: "BRCA1 AND breast cancer AND 2020:2024[PDAT]"
         output_path: Path to output markdown file (must end with .md)
         format: Output format - "full", "summary", or "minimal" (default: "summary")
             - "full": Complete abstracts for all articles
@@ -198,8 +197,6 @@ def pubmed_review(
         storage: Storage type - "obsidian" or "file" (default: "obsidian")
             - "obsidian": Creates parent directories, adds frontmatter
             - "file": Direct filesystem write
-        year_start: Filter by publication year start (optional)
-        year_end: Filter by publication year end (optional)
         sort: Sort order - "pub_date", "relevance", etc. (default: "pub_date")
 
     Returns:
@@ -224,13 +221,11 @@ def pubmed_review(
         ... )
 
         >>> pubmed_review(
-        ...     query="BRCA1 AND breast cancer",
+        ...     query="BRCA1 AND breast cancer AND 2020:2024[PDAT]",
         ...     output_path="research/brca1_review.md",
         ...     format="full",
         ...     max_results=50,
-        ...     storage="file",
-        ...     year_start=2020,
-        ...     year_end=2024
+        ...     storage="file"
         ... )
 
     Notes:
@@ -267,17 +262,9 @@ def pubmed_review(
                 "partial_results": 0,
             }
 
-        # Build query with year filters
-        search_query = query
-        if year_start or year_end:
-            start_year = year_start if year_start else 1900
-            end_year = year_end if year_end else 3000
-            year_filter = f"{start_year}:{end_year}[PDAT]"
-            search_query = f"({query}) AND {year_filter}"
-
         # Search PubMed for PMIDs
         search_result = database.entrez_search(
-            "pubmed", search_query, max_results=min(max_results, 1000), sort=sort
+            "pubmed", query, max_results=min(max_results, 1000), sort=sort
         )
 
         if not search_result["success"]:
@@ -346,15 +333,11 @@ def pubmed_review(
             # Write header
             f.write(f"# Literature Review: {query}\n\n")
             f.write("## Query Details\n\n")
-            f.write(f"- **Query:** `{search_query}`\n")
+            f.write(f"- **Query:** `{query}`\n")
             f.write(f"- **Total Found:** {total_found:,}\n")
             f.write(f"- **Retrieved:** {len(pmids)}\n")
             f.write(f"- **Format:** {format}\n")
             f.write(f"- **Sort:** {sort}\n")
-            if year_start or year_end:
-                f.write(
-                    f"- **Year Range:** {year_start or '∞'} - {year_end or datetime.now().year}\n"
-                )
             f.write(f"- **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             f.write("---\n\n")
 
