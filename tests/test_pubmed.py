@@ -1,5 +1,7 @@
 """Tests for PubMed module."""
 
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from biopython_mcp.modules import pubmed
@@ -143,39 +145,28 @@ class TestPubMedReview:
             "data": "Test abstract content.",
         }
 
-        result = pubmed.pubmed_review(
-            query="test query",
-            output_path="/tmp/test.md",
-            format="full",
-            max_results=2,
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = pubmed.pubmed_review(
+                query="test query",
+                obsidian_vault=tmpdir,
+                storage_path="test",
+                max_results=2,
+            )
 
-        assert result["status"] == "success"
-        assert "content" in result
-        assert isinstance(result["content"], str)
-        assert result["content"].startswith("---")  # YAML frontmatter
-        assert "# Literature Review:" in result["content"]
-        assert "Test Article 1" in result["content"]
-        assert result["articles_written"] == 1
-        assert result["filepath"] == "/tmp/test.md"
-        assert "file_size_kb" in result
+            assert result["status"] == "success"
+            assert "filepath" in result
+            # Verify file was created
+            filepath = Path(result["filepath"])
+            assert filepath.exists()
+            assert filepath.suffix == ".md"
 
-    @patch("biopython_mcp.database")
-    def test_pubmed_review_invalid_output_path(self, mock_database: MagicMock) -> None:
-        """Test review with invalid output path."""
-        result = pubmed.pubmed_review(query="test", output_path="/tmp/test.txt", format="full")
-
-        assert result["status"] == "error"
-        assert result["error_type"] == "validation_error"
-        assert ".md" in result["message"]
-
-    @patch("biopython_mcp.database")
-    def test_pubmed_review_invalid_format(self, mock_database: MagicMock) -> None:
-        """Test review with invalid format."""
-        result = pubmed.pubmed_review(query="test", output_path="/tmp/test.md", format="invalid")
-
-        assert result["status"] == "error"
-        assert result["error_type"] == "validation_error"
+            # Read and verify content
+            content = filepath.read_text()
+            assert content.startswith("---")  # YAML frontmatter
+            assert "# Literature Review:" in content
+            assert "Test Article 1" in content
+            assert result["articles_written"] == 1
+            assert "file_size_kb" in result
 
     @patch("biopython_mcp.database")
     def test_pubmed_review_search_failure(self, mock_database: MagicMock) -> None:
@@ -185,10 +176,15 @@ class TestPubMedReview:
             "error": "Search failed",
         }
 
-        result = pubmed.pubmed_review(query="test", output_path="/tmp/test.md")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = pubmed.pubmed_review(
+                query="test",
+                obsidian_vault=tmpdir,
+                storage_path="test",
+            )
 
-        assert result["status"] == "error"
-        assert result["error_type"] == "query_error"
+            assert result["status"] == "error"
+            assert result["error_type"] == "query_error"
 
     @patch("biopython_mcp.database")
     def test_pubmed_review_no_results(self, mock_database: MagicMock) -> None:
@@ -199,73 +195,16 @@ class TestPubMedReview:
             "total_found": 0,
         }
 
-        result = pubmed.pubmed_review(query="test", output_path="/tmp/test.md")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = pubmed.pubmed_review(
+                query="test",
+                obsidian_vault=tmpdir,
+                storage_path="test",
+            )
 
-        assert result["status"] == "error"
-        assert result["error_type"] == "query_error"
-        assert "No articles found" in result["message"]
-
-    @patch("biopython_mcp.database")
-    def test_pubmed_review_minimal_format(self, mock_database: MagicMock) -> None:
-        """Test review generation with minimal format."""
-        mock_database.entrez_search.return_value = {
-            "success": True,
-            "ids": ["12345"],
-            "total_found": 1,
-        }
-
-        mock_database.entrez_summary.return_value = {
-            "success": True,
-            "summaries": [
-                {
-                    "Id": "12345",
-                    "Title": "Test Article",
-                    "PubDate": "2024",
-                    "ArticleIds": {"doi": "10.1234/test"},
-                }
-            ],
-        }
-
-        result = pubmed.pubmed_review(query="test", output_path="/tmp/test.md", format="minimal")
-
-        assert result["status"] == "success"
-        assert result["format"] == "minimal"
-        assert "content" in result
-        assert "Test Article" in result["content"]
-
-    @patch("biopython_mcp.database")
-    def test_pubmed_review_summary_format(self, mock_database: MagicMock) -> None:
-        """Test review generation with summary format."""
-        mock_database.entrez_search.return_value = {
-            "success": True,
-            "ids": ["12345"],
-            "total_found": 1,
-        }
-
-        mock_database.entrez_summary.return_value = {
-            "success": True,
-            "summaries": [
-                {
-                    "Id": "12345",
-                    "Title": "Test abstract Article",
-                    "PubDate": "2024",
-                    "ArticleIds": {"pmc": "PMC123"},
-                }
-            ],
-        }
-
-        mock_database.entrez_fetch.return_value = {
-            "success": True,
-            "data": "First sentence. Second sentence.",
-        }
-
-        result = pubmed.pubmed_review(query="test", output_path="/tmp/test.md", format="summary")
-
-        assert result["status"] == "success"
-        assert result["format"] == "summary"
-        assert "content" in result
-        assert "Test abstract Article" in result["content"]
-        assert "First sentence" in result["content"]
+            assert result["status"] == "error"
+            assert result["error_type"] == "query_error"
+            assert "No articles found" in result["message"]
 
     @patch("biopython_mcp.database")
     def test_pubmed_review_obsidian_frontmatter(self, mock_database: MagicMock) -> None:
@@ -291,12 +230,24 @@ class TestPubMedReview:
 
         mock_database.entrez_fetch.return_value = {"success": False}
 
-        result = pubmed.pubmed_review(query="test query", output_path="/tmp/test.md")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = pubmed.pubmed_review(
+                query="test query",
+                obsidian_vault=tmpdir,
+                storage_path="research",
+            )
 
-        assert result["status"] == "success"
-        assert "content" in result
-        # Verify Obsidian YAML frontmatter is present
-        assert result["content"].startswith("---")
-        assert "title: Literature Review" in result["content"]
-        assert "tags: [literature-review, pubmed, biopython-mcp]" in result["content"]
-        assert "status: complete" in result["content"]
+            assert result["status"] == "success"
+            assert "filepath" in result
+
+            # Read and verify content
+            filepath = Path(result["filepath"])
+            content = filepath.read_text()
+            # Verify Obsidian YAML frontmatter is present
+            assert content.startswith("---")
+            assert "title: Literature Review" in content
+            assert "tags: [literature-review, pubmed, biopython-mcp]" in content
+            assert "status: complete" in content
+
+            # Verify file is in correct location
+            assert "research" in str(filepath)

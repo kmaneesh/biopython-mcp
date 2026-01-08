@@ -15,6 +15,7 @@ PMC access should respect NCBI rate limits (same as Entrez):
 
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any, TypedDict
 
 import httpx
@@ -174,67 +175,63 @@ def get_doi_url(doi: str) -> str:
 
 def pubmed_review(
     query: str,
-    output_path: str,
-    format: str = "summary",
+    obsidian_vault: str,
+    storage_path: str,
     max_results: int = 25,
     sort: str = "pub_date",
 ) -> dict[str, Any]:
     """
-    Create a formatted literature review from PubMed search results.
+    Create a formatted literature review from PubMed search results and write to MD file.
 
     This function searches PubMed, fetches article metadata, formats it as
-    markdown, and returns the content in JSON for Claude to write to the desired location.
+    markdown with complete abstracts, and writes the content directly to a file.
+    The filename is auto-generated with datetime and query indication.
 
     Args:
         query: PubMed search query (supports full Entrez syntax including year filters)
             Example: "BRCA1 AND breast cancer AND 2020:2024[PDAT]"
-        output_path: Target filepath (for reference; Claude handles actual writing)
-        format: Output format - "full", "summary", or "minimal" (default: "summary")
-            - "summary": Title + key findings + metadata (~60 tokens/article)
-            - "full": Complete abstracts (~250 tokens/article)
-            - "minimal": Title + links only (~20 tokens/article)
+        obsidian_vault: Path to the Obsidian vault (e.g., "/Users/user/Documents/MyVault")
+        storage_path: Relative path within the vault to store the file (e.g., "KB/pubmed")
         max_results: Maximum number of articles to include (default: 25, max: 1000)
         sort: Sort order - "pub_date", "relevance", etc. (default: "pub_date")
 
     Returns:
-        Dictionary with review content and metadata:
+        Dictionary with review results and metadata:
             - status: "success" or "error"
-            - content: Full markdown content (ready to write)
-            - filepath: Target path from output_path parameter
+            - filepath: Full path where file was written
             - articles_found: Total number of articles found
             - articles_written: Number of articles successfully processed
             - articles_with_pmc: Count of articles with PMC IDs
             - articles_with_doi: Count of articles with DOIs
             - query: Original search query
-            - format: Format used
             - file_size_kb: File size in kilobytes
             - year_range: {"min": int, "max": int}
             - top_journals: List of top 5 journals by article count
             - execution_time_seconds: Time taken to generate review
 
     Examples:
-        >>> # Returns content in JSON for Claude to write
         >>> result = pubmed_review(
         ...     query="COL4A3[Gene] AND Alport syndrome",
-        ...     output_path="KB/pubmed/alport_review.md"
+        ...     obsidian_vault="/Users/user/Documents/Obsidian",
+        ...     storage_path="KB/pubmed"
         ... )
-        >>> # Claude automatically writes result["content"] to Obsidian or filesystem
+        >>> # File written to: /Users/user/Documents/Obsidian/KB/pubmed/20260108_143025_COL4A3_Gene_AND_Alport.md
 
-        >>> # Full format with more results
+        >>> # More results
         >>> result = pubmed_review(
         ...     query="BRCA1 AND breast cancer AND 2020:2024[PDAT]",
-        ...     output_path="reviews/brca1_review.md",
-        ...     format="full",
+        ...     obsidian_vault="/Users/user/Vault",
+        ...     storage_path="research/cancer",
         ...     max_results=50
         ... )
 
     Notes:
-        - Returns content in JSON (MCP best practice: server generates, client writes)
-        - Uses memory-efficient content generation
+        - Writes markdown file directly to disk with complete abstracts
         - Fetches articles in batches of 20 (NCBI limit)
         - Respects NCBI rate limits (3/sec or 10/sec with API key)
         - For very large reviews (>500 articles), consider splitting into multiple calls
         - Includes Obsidian-compatible YAML frontmatter
+        - Filename format: YYYYMMDD_HHMMSS_query_slug.md
     """
     start_time = time.time()
     articles_written = 0
@@ -243,21 +240,20 @@ def pubmed_review(
         # Import here to avoid circular dependency
         from biopython_mcp import database
 
-        # Validate output path
-        if not output_path.endswith(".md"):
-            return {
-                "status": "error",
-                "error_type": "validation_error",
-                "message": "Output path must end with .md",
-            }
+        # Generate filename with datetime + query slug
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Create query slug (first 30 chars, sanitize)
+        query_slug = (
+            query[:30].replace(" ", "_").replace("[", "").replace("]", "").replace("/", "_")
+        )
+        filename = f"{timestamp}_{query_slug}.md"
 
-        # Validate format
-        if format not in ["full", "summary", "minimal"]:
-            return {
-                "status": "error",
-                "error_type": "validation_error",
-                "message": f"Invalid format '{format}'. Must be 'full', 'summary', or 'minimal'",
-            }
+        # Join paths
+        full_dir_path = Path(obsidian_vault) / storage_path
+        output_path = full_dir_path / filename
+
+        # Create directory if it doesn't exist
+        full_dir_path.mkdir(parents=True, exist_ok=True)
 
         # Search PubMed for PMIDs
         search_result = database.entrez_search(
@@ -300,7 +296,6 @@ def pubmed_review(
         content_parts.append(f"date: {datetime.now().isoformat()}")
         content_parts.append(f'query: "{query}"')
         content_parts.append(f"total_articles: {len(pmids)}")
-        content_parts.append(f"format: {format}")
         content_parts.append("status: complete")
         content_parts.append("---\n")
 
@@ -310,7 +305,6 @@ def pubmed_review(
         content_parts.append(f"- **Query:** `{query}`")
         content_parts.append(f"- **Total Found:** {total_found:,}")
         content_parts.append(f"- **Retrieved:** {len(pmids)}")
-        content_parts.append(f"- **Format:** {format}")
         content_parts.append(f"- **Sort:** {sort}")
         content_parts.append(f"- **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         content_parts.append("---\n")
@@ -356,75 +350,42 @@ def pubmed_review(
                     if journal:
                         stats["journals"][journal] = stats["journals"].get(journal, 0) + 1
 
-                    # Format based on requested format type
-                    if format == "minimal":
-                        # Minimal format: single line
-                        content_parts.append(f"[{article_num}] {title} | PMID: {pmid}")
-                        if pmc_id:
-                            content_parts.append(f" | PMC: {pmc_id}")
-                        if doi:
-                            content_parts.append(f" | [{doi}]({get_doi_url(doi)})")
+                    # Full format: complete abstract
+                    content_parts.append(f"## [{article_num}] {title}\n")
+                    content_parts.append(
+                        f"**PMID:** [{pmid}](https://pubmed.ncbi.nlm.nih.gov/{pmid}/)"
+                    )
+                    content_parts.append(f" | **Year:** {year} | **Journal:** {journal}\n")
+
+                    if doi:
+                        content_parts.append(f"**DOI:** [{doi}]({get_doi_url(doi)})")
+                    if pmc_id:
+                        content_parts.append(f" | **PMC:** [{pmc_id}]({get_pmc_url(pmc_id)})")
+                    content_parts.append("\n")
+
+                    # Authors
+                    if authors:
+                        author_names = [
+                            f"{a.get('LastName', '')} {a.get('Initials', '')}".strip()
+                            for a in authors[:10]
+                        ]
+                        content_parts.append(f"**Authors:** {', '.join(author_names)}")
+                        if len(authors) > 10:
+                            content_parts.append(f", et al. ({len(authors)} total)")
                         content_parts.append("\n")
 
-                    elif format == "summary":
-                        # Summary format: title + key info + first sentence
-                        content_parts.append(f"### [{article_num}] {title}\n")
-                        content_parts.append(f"**PMID:** {pmid} | **Year:** {year}")
-                        if pmc_id:
-                            content_parts.append(f" | **PMC:** [{pmc_id}]({get_pmc_url(pmc_id)})")
-                        else:
-                            content_parts.append(" | **PMC:** null")
-                        content_parts.append("\n")
+                    # Fetch full abstract
+                    fetch_result = database.entrez_fetch(
+                        "pubmed", pmid, rettype="abstract", retmode="text"
+                    )
+                    if fetch_result["success"]:
+                        abstract = fetch_result["data"]
+                        content_parts.append("**Full Abstract:**\n")
+                        content_parts.append(f"{abstract}\n")
+                    else:
+                        content_parts.append("**Abstract:** Not available\n")
 
-                        # Get first sentence from abstract if available
-                        fetch_result = database.entrez_fetch(
-                            "pubmed", pmid, rettype="abstract", retmode="text"
-                        )
-                        if fetch_result["success"]:
-                            abstract = fetch_result["data"]
-                            # Extract first sentence (up to first period + space)
-                            first_sentence = abstract.split(". ")[0] + "."
-                            content_parts.append(f"**Key:** {first_sentence}\n")
-
-                        content_parts.append("---\n")
-
-                    elif format == "full":
-                        # Full format: complete abstract
-                        content_parts.append(f"## [{article_num}] {title}\n")
-                        content_parts.append(
-                            f"**PMID:** [{pmid}](https://pubmed.ncbi.nlm.nih.gov/{pmid}/)"
-                        )
-                        content_parts.append(f" | **Year:** {year} | **Journal:** {journal}\n")
-
-                        if doi:
-                            content_parts.append(f"**DOI:** [{doi}]({get_doi_url(doi)})")
-                        if pmc_id:
-                            content_parts.append(f" | **PMC:** [{pmc_id}]({get_pmc_url(pmc_id)})")
-                        content_parts.append("\n")
-
-                        # Authors
-                        if authors:
-                            author_names = [
-                                f"{a.get('LastName', '')} {a.get('Initials', '')}".strip()
-                                for a in authors[:10]
-                            ]
-                            content_parts.append(f"**Authors:** {', '.join(author_names)}")
-                            if len(authors) > 10:
-                                content_parts.append(f", et al. ({len(authors)} total)")
-                            content_parts.append("\n")
-
-                        # Fetch full abstract
-                        fetch_result = database.entrez_fetch(
-                            "pubmed", pmid, rettype="abstract", retmode="text"
-                        )
-                        if fetch_result["success"]:
-                            abstract = fetch_result["data"]
-                            content_parts.append("**Full Abstract:**\n")
-                            content_parts.append(f"{abstract}\n")
-                        else:
-                            content_parts.append("**Abstract:** Not available\n")
-
-                        content_parts.append("---\n")
+                    content_parts.append("---\n")
 
                     articles_written += 1
 
@@ -452,6 +413,9 @@ def pubmed_review(
 
         # Step 5: Combine all parts
         full_content = "\n".join(content_parts)
+
+        # Step 6: Write to file
+        output_path.write_text(full_content, encoding="utf-8")
         file_size_kb = round(len(full_content.encode("utf-8")) / 1024, 2)
 
         # Calculate execution time
@@ -465,17 +429,15 @@ def pubmed_review(
             ]
         ]
 
-        # Step 6: Return content in JSON
+        # Step 7: Return results
         return {
             "status": "success",
-            "content": full_content,
-            "filepath": output_path,
+            "filepath": str(output_path),
             "articles_found": total_found,
             "articles_written": articles_written,
             "articles_with_pmc": stats["pmc_count"],
             "articles_with_doi": stats["doi_count"],
             "query": query,
-            "format": format,
             "file_size_kb": file_size_kb,
             "year_range": (
                 {"min": min(stats["years"]), "max": max(stats["years"])}
