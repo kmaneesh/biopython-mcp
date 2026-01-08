@@ -10,7 +10,7 @@ from biopython_mcp import structure
 class TestFetchPDBStructure:
     """Tests for fetch_pdb_structure function."""
 
-    @patch("biopython_mcp.structure.PDB.PDBList")
+    @patch("biopython_mcp.structure.PDBList")
     def test_fetch_pdb_success(self, mock_pdblist: MagicMock) -> None:
         """Test successful PDB structure fetch."""
         mock_list_instance = MagicMock()
@@ -24,7 +24,7 @@ class TestFetchPDBStructure:
         assert "file_path" in result
         mock_list_instance.retrieve_pdb_file.assert_called_once()
 
-    @patch("biopython_mcp.structure.PDB.PDBList")
+    @patch("biopython_mcp.structure.PDBList")
     def test_fetch_pdb_failure(self, mock_pdblist: MagicMock) -> None:
         """Test PDB fetch failure."""
         mock_list_instance = MagicMock()
@@ -41,7 +41,7 @@ class TestFetchPDBStructure:
 class TestCalculateStructureStats:
     """Tests for calculate_structure_stats function."""
 
-    @patch("biopython_mcp.structure.PDB.PDBParser")
+    @patch("biopython_mcp.structure.PDBParser")
     @patch("builtins.open", mock_open(read_data="PDB DATA"))
     def test_calculate_stats_success(self, mock_parser: MagicMock) -> None:
         """Test successful structure statistics calculation."""
@@ -77,7 +77,7 @@ class TestCalculateStructureStats:
         assert "num_residues" in result
         assert "num_chains" in result
 
-    @patch("biopython_mcp.structure.PDB.PDBParser")
+    @patch("biopython_mcp.structure.PDBParser")
     def test_calculate_stats_file_not_found(self, mock_parser: MagicMock) -> None:
         """Test statistics calculation with non-existent file."""
         mock_parser_instance = MagicMock()
@@ -89,7 +89,7 @@ class TestCalculateStructureStats:
         assert result["success"] is False
         assert "error" in result
 
-    @patch("biopython_mcp.structure.PDB.PDBParser")
+    @patch("biopython_mcp.structure.PDBParser")
     def test_calculate_stats_parse_error(self, mock_parser: MagicMock) -> None:
         """Test statistics calculation with parse error."""
         mock_parser_instance = MagicMock()
@@ -105,59 +105,47 @@ class TestCalculateStructureStats:
 class TestFindActiveSite:
     """Tests for find_active_site function."""
 
-    @patch("biopython_mcp.structure.PDB.PDBParser")
+    @patch("biopython_mcp.structure.PDBParser")
     @patch("builtins.open", mock_open(read_data="PDB DATA"))
     def test_find_active_site_success(self, mock_parser: MagicMock) -> None:
         """Test successful active site finding."""
-        # Mock atoms with coordinates
+        # Mock atoms
         mock_atom1 = MagicMock()
-        mock_atom1.get_coord.return_value = [0.0, 0.0, 0.0]
-        mock_atom1.get_parent.return_value.get_id.return_value = ("H_SER", 100, " ")
-        mock_atom1.get_parent.return_value.get_parent.return_value.get_id.return_value = "A"
-        mock_atom1.get_name.return_value = "OG"
+        mock_atom1.get_name.return_value = "CA"
 
         mock_atom2 = MagicMock()
-        mock_atom2.get_coord.return_value = [1.0, 0.0, 0.0]
-        mock_atom2.get_parent.return_value.get_id.return_value = ("H_HIS", 101, " ")
-        mock_atom2.get_parent.return_value.get_parent.return_value.get_id.return_value = "A"
-        mock_atom2.get_name.return_value = "ND1"
-
-        mock_target_atom = MagicMock()
-        mock_target_atom.get_coord.return_value = [0.5, 0.0, 0.0]
+        mock_atom2.get_name.return_value = "CB"
 
         # Mock residue
         mock_residue = MagicMock()
-        mock_residue.get_id.return_value = ("H_LIG", 200, " ")
-        mock_residue.__iter__.return_value = [mock_target_atom]
+        mock_residue.get_resname.return_value = "SER"
+        mock_residue.__iter__.return_value = [mock_atom1, mock_atom2]
 
         # Mock chain
         mock_chain = MagicMock()
-        mock_chain.__iter__.return_value = [mock_residue]
         mock_chain.__getitem__.return_value = mock_residue
 
         # Mock model
         mock_model = MagicMock()
-        mock_model.__iter__.return_value = [mock_chain]
         mock_model.__getitem__.return_value = mock_chain
 
         # Mock structure
         mock_structure = MagicMock()
-        mock_structure.__iter__.return_value = [mock_model]
         mock_structure.__getitem__.return_value = mock_model
-
-        # Mock atom search
-        mock_structure.get_atoms.return_value = [mock_atom1, mock_atom2, mock_target_atom]
 
         mock_parser_instance = MagicMock()
         mock_parser_instance.get_structure.return_value = mock_structure
         mock_parser.return_value = mock_parser_instance
 
-        result = structure.find_active_site("/tmp/test.pdb", "A", 200)
+        result = structure.find_active_site("/tmp/test.pdb", [100, 101], "A")
 
         assert result["success"] is True
-        assert "residues" in result
+        assert "active_site" in result
+        assert len(result["active_site"]) == 2
+        assert result["chain_id"] == "A"
+        assert result["num_residues_analyzed"] == 2
 
-    @patch("biopython_mcp.structure.PDB.PDBParser")
+    @patch("biopython_mcp.structure.PDBParser")
     def test_find_active_site_residue_not_found(self, mock_parser: MagicMock) -> None:
         """Test active site finding with non-existent residue."""
         mock_chain = MagicMock()
@@ -173,19 +161,23 @@ class TestFindActiveSite:
         mock_parser_instance.get_structure.return_value = mock_structure
         mock_parser.return_value = mock_parser_instance
 
-        result = structure.find_active_site("/tmp/test.pdb", "A", 999)
+        result = structure.find_active_site("/tmp/test.pdb", [999], "A")
 
-        assert result["success"] is False
-        assert "not found" in result["error"].lower()
+        # Function returns success=True but includes error info for missing residues
+        assert result["success"] is True
+        assert "active_site" in result
+        assert len(result["active_site"]) == 1
+        assert "error" in result["active_site"][0]
+        assert "not found" in result["active_site"][0]["error"].lower()
 
-    @patch("biopython_mcp.structure.PDB.PDBParser")
+    @patch("biopython_mcp.structure.PDBParser")
     def test_find_active_site_parse_error(self, mock_parser: MagicMock) -> None:
         """Test active site finding with parse error."""
         mock_parser_instance = MagicMock()
         mock_parser_instance.get_structure.side_effect = Exception("Parse error")
         mock_parser.return_value = mock_parser_instance
 
-        result = structure.find_active_site("/tmp/test.pdb", "A", 100)
+        result = structure.find_active_site("/tmp/test.pdb", [100], "A")
 
         assert result["success"] is False
         assert "error" in result
