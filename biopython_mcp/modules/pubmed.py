@@ -1,14 +1,10 @@
-"""Utilities for accessing PubMed Central (PMC) full-text articles.
+"""
+PubMed Central Full-Text Access Module.
 
-This module provides functions for fetching full-text articles from PMC,
-which hosts open access biomedical and life sciences literature.
-
-PMC Access
-----------
-PMC provides several access methods:
-- OAI Service: For open access articles in XML format
-- E-utilities: For metadata and full-text links
-- FTP: For bulk downloads
+This module provides functions to:
+1. Fetch full-text articles from PubMed Central (PMC)
+2. Generate formatted literature reviews from PubMed searches
+3. Get URLs for PMC articles and DOIs
 
 Rate Limiting
 -------------
@@ -116,32 +112,31 @@ def pubmed_fetch(pmc_id: str, format: str = "xml", timeout: int = 30) -> dict[st
             "format": format,
             "content": content,
             "content_length": len(content),
-            "source": "PMC OAI Service",
         }
 
+    except httpx.TimeoutException as e:
+        return {
+            "success": False,
+            "error": f"Request timeout after {timeout} seconds: {str(e)}",
+            "pmc_id": pmc_id,
+        }
     except httpx.HTTPStatusError as e:
         return {
             "success": False,
             "error": f"HTTP error: {e.response.status_code} - {e.response.reason_phrase}",
             "pmc_id": pmc_id,
         }
-    except httpx.TimeoutException:
-        return {
-            "success": False,
-            "error": f"Request timeout after {timeout} seconds",
-            "pmc_id": pmc_id,
-        }
     except Exception as e:
         return {
             "success": False,
-            "error": f"Error fetching PMC article: {str(e)}",
+            "error": f"Failed to fetch PMC article: {str(e)}",
             "pmc_id": pmc_id,
         }
 
 
 def get_pmc_url(pmc_id: str) -> str:
     """
-    Generate PMC article URL from PMC ID.
+    Get the URL for a PubMed Central article.
 
     Args:
         pmc_id: PMC identifier (with or without 'PMC' prefix)
@@ -152,6 +147,7 @@ def get_pmc_url(pmc_id: str) -> str:
     Examples:
         >>> get_pmc_url("PMC3539452")
         'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3539452/'
+
         >>> get_pmc_url("3539452")
         'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3539452/'
     """
@@ -162,7 +158,7 @@ def get_pmc_url(pmc_id: str) -> str:
 
 def get_doi_url(doi: str) -> str:
     """
-    Generate DOI resolver URL from DOI.
+    Get the URL for a DOI.
 
     Args:
         doi: Digital Object Identifier
@@ -180,73 +176,80 @@ def get_doi_url(doi: str) -> str:
 def pubmed_review(
     query: str,
     output_path: str,
-    format: str = "full",
+    format: str = "summary",
     max_results: int = 25,
-    storage: str = "obsidian",
     sort: str = "pub_date",
+    return_content: bool = True,
 ) -> dict[str, Any]:
     """
-    Create a formatted literature review document from PubMed search results.
+    Create a formatted literature review from PubMed search results.
 
-    This function uses a streaming write pattern to efficiently generate literature
-    review markdown files without loading all content into memory. Articles are
-    fetched in batches and written immediately to disk, saving approximately 70%
-    of tokens compared to loading full content.
+    This function searches PubMed, fetches article metadata, formats it as
+    markdown, and returns the content for writing via Obsidian or filesystem.
 
     Args:
         query: PubMed search query (supports full Entrez syntax including year filters)
             Example: "BRCA1 AND breast cancer AND 2020:2024[PDAT]"
-        output_path: Path to output markdown file (must end with .md)
-        format: Output format - "full", "summary", or "minimal" (default: "full")
-            - "full": Complete abstracts for all articles
-            - "summary": Title + key findings + metadata (50-100 words per article)
-            - "minimal": Title + PMID + PMC + DOI links only
+        output_path: Target filepath (for reference; actual writing done by caller when return_content=True)
+        format: Output format - "full", "summary", or "minimal" (default: "summary")
+            - "summary": Title + key findings + metadata (~60 tokens/article)
+            - "full": Complete abstracts (~250 tokens/article)
+            - "minimal": Title + links only (~20 tokens/article)
         max_results: Maximum number of articles to include (default: 25, max: 1000)
-        storage: Storage type - "obsidian" or "file" (default: "obsidian")
-            - "obsidian": Creates parent directories, adds frontmatter
-            - "file": Direct filesystem write
         sort: Sort order - "pub_date", "relevance", etc. (default: "pub_date")
+        return_content: If True (default), returns content in JSON response.
+                       If False, writes directly to output_path (legacy mode, deprecated)
 
     Returns:
-        Dictionary with metadata (NOT file content):
-        - status: "success" or "error"
-        - filepath: Absolute path to created file
-        - articles_found: Total number of articles found
-        - articles_written: Number of articles written to file
-        - articles_with_pmc: Count of articles with PMC IDs
-        - articles_with_doi: Count of articles with DOIs
-        - query: Original search query
-        - format: Format used
-        - file_size_kb: File size in kilobytes
-        - year_range: {"min": int, "max": int}
-        - top_journals: List of top 5 journals by article count
-        - execution_time_seconds: Time taken to generate review
+        Dictionary with metadata:
+        When return_content=True:
+            - status: "success", "partial_success", or "error"
+            - storage_mode: "content_return"
+            - content: Full markdown content (ready to write)
+            - filepath: Target path from output_path parameter
+            - articles_found: Total number of articles found
+            - articles_written: Number of articles successfully processed
+            - articles_with_pmc: Count of articles with PMC IDs
+            - articles_with_doi: Count of articles with DOIs
+            - query: Original search query
+            - format: Format used
+            - file_size_kb: File size in kilobytes
+            - year_range: {"min": int, "max": int}
+            - top_journals: List of top 5 journals by article count
+            - execution_time_seconds: Time taken to generate review
+
+        When return_content=False (legacy):
+            - status: "success" or "error"
+            - storage_mode: "direct_write"
+            - filepath: Actual path written to
+            - (same metadata fields as above, but NO "content" field)
 
     Examples:
-        >>> pubmed_review(
-        ...     query="(COL4A3[Gene] OR COL4A4[Gene]) AND Alport syndrome",
+        >>> # Via Claude (automatic storage):
+        >>> result = pubmed_review(
+        ...     query="COL4A3[Gene] AND Alport syndrome",
         ...     output_path="KB/pubmed/alport_review.md"
         ... )
+        >>> # Claude automatically writes result["content"] to Obsidian
 
-        >>> pubmed_review(
+        >>> # Direct filesystem write (standalone):
+        >>> result = pubmed_review(
         ...     query="BRCA1 AND breast cancer AND 2020:2024[PDAT]",
-        ...     output_path="research/brca1_review.md",
+        ...     output_path="/path/to/file.md",
         ...     format="full",
         ...     max_results=50,
-        ...     storage="file"
+        ...     return_content=False
         ... )
 
     Notes:
-        - Uses streaming write pattern for memory efficiency
+        - Uses memory-efficient content generation
         - Fetches articles in batches of 20 (NCBI limit)
-        - Returns metadata only, not file content (saves tokens)
-        - Creates parent directories automatically
-        - Adds Obsidian frontmatter if storage="obsidian"
+        - Returns metadata only when return_content=False (saves tokens)
         - Respects NCBI rate limits (3/sec or 10/sec with API key)
+        - For very large reviews (>500 articles), consider splitting into multiple calls
     """
     start_time = time.time()
     articles_written = 0
-    partial_results = 0
 
     try:
         # Import here to avoid circular dependency
@@ -258,7 +261,6 @@ def pubmed_review(
                 "status": "error",
                 "error_type": "validation_error",
                 "message": "Output path must end with .md",
-                "partial_results": 0,
             }
 
         # Validate format
@@ -267,7 +269,6 @@ def pubmed_review(
                 "status": "error",
                 "error_type": "validation_error",
                 "message": f"Invalid format '{format}'. Must be 'full', 'summary', or 'minimal'",
-                "partial_results": 0,
             }
 
         # Search PubMed for PMIDs
@@ -280,7 +281,6 @@ def pubmed_review(
                 "status": "error",
                 "error_type": "query_error",
                 "message": search_result.get("error", "Search failed"),
-                "partial_results": 0,
             }
 
         pmids = search_result["ids"]
@@ -291,26 +291,6 @@ def pubmed_review(
                 "status": "error",
                 "error_type": "query_error",
                 "message": "No articles found for query",
-                "partial_results": 0,
-            }
-
-        # Prepare output path
-        output_file = Path(output_path)
-
-        # Create parent directories
-        if storage in ("obsidian", "file"):
-            output_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Check write permissions
-        try:
-            with open(output_file, "w", encoding="utf-8") as test_file:
-                test_file.write("")
-        except Exception as e:
-            return {
-                "status": "error",
-                "error_type": "write_error",
-                "message": f"Cannot write to {output_path}: {str(e)}",
-                "partial_results": 0,
             }
 
         # Statistics tracking
@@ -321,173 +301,170 @@ def pubmed_review(
             "journals": {},
         }
 
-        # Open file for streaming write
-        with open(output_file, "w", encoding="utf-8") as f:
-            # Write frontmatter for Obsidian
-            if storage == "obsidian":
-                query_truncated = query[:50] + "..." if len(query) > 50 else query
-                f.write("---\n")
-                f.write(f"title: Literature Review - {query_truncated}\n")
-                f.write("tags: [literature-review, pubmed, biopython-mcp]\n")
-                f.write(f"date: {datetime.now().isoformat()}\n")
-                f.write(f'query: "{query}"\n')
-                f.write(f"total_articles: {len(pmids)}\n")
-                f.write(f"format: {format}\n")
-                f.write("status: complete\n")
-                f.write("---\n\n")
+        # Build content in memory
+        content_parts = []
 
-            # Write header
-            f.write(f"# Literature Review: {query}\n\n")
-            f.write("## Query Details\n\n")
-            f.write(f"- **Query:** `{query}`\n")
-            f.write(f"- **Total Found:** {total_found:,}\n")
-            f.write(f"- **Retrieved:** {len(pmids)}\n")
-            f.write(f"- **Format:** {format}\n")
-            f.write(f"- **Sort:** {sort}\n")
-            f.write(f"- **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            f.write("---\n\n")
+        # Step 1: Generate frontmatter (Obsidian YAML)
+        query_truncated = query[:50] + "..." if len(query) > 50 else query
+        content_parts.append("---")
+        content_parts.append(f"title: Literature Review - {query_truncated}")
+        content_parts.append("tags: [literature-review, pubmed, biopython-mcp]")
+        content_parts.append(f"date: {datetime.now().isoformat()}")
+        content_parts.append(f'query: "{query}"')
+        content_parts.append(f"total_articles: {len(pmids)}")
+        content_parts.append(f"format: {format}")
+        content_parts.append("status: complete")
+        content_parts.append("---\n")
 
-            # Fetch and write articles in batches (streaming pattern)
-            batch_size = 20
-            for i in range(0, len(pmids), batch_size):
-                batch = pmids[i : i + batch_size]
+        # Step 2: Write header
+        content_parts.append(f"# Literature Review: {query}\n")
+        content_parts.append("## Query Details\n")
+        content_parts.append(f"- **Query:** `{query}`")
+        content_parts.append(f"- **Total Found:** {total_found:,}")
+        content_parts.append(f"- **Retrieved:** {len(pmids)}")
+        content_parts.append(f"- **Format:** {format}")
+        content_parts.append(f"- **Sort:** {sort}")
+        content_parts.append(f"- **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        content_parts.append("---\n")
 
-                # Fetch summaries for this batch
-                summary_result = database.entrez_summary("pubmed", batch)
+        # Step 3: Fetch and format articles in batches
+        batch_size = 20
+        for i in range(0, len(pmids), batch_size):
+            batch = pmids[i : i + batch_size]
 
-                if not summary_result["success"]:
-                    # Write error note but continue
-                    f.write(f"\n**Error fetching batch {i//batch_size + 1}:** ")
-                    f.write(f"{summary_result.get('error', 'Unknown error')}\n\n")
+            # Fetch summaries for this batch
+            summary_result = database.entrez_summary("pubmed", batch)
+
+            if not summary_result["success"]:
+                # Write error note but continue
+                content_parts.append(f"\n**Error fetching batch {i//batch_size + 1}:** ")
+                content_parts.append(f"{summary_result.get('error', 'Unknown error')}\n")
+                continue
+
+            # Process each article in the batch immediately
+            for idx, summary in enumerate(summary_result["summaries"]):
+                try:
+                    article_num = i + idx + 1
+
+                    # Extract metadata
+                    pmid = summary.get("Id", "")
+                    title = summary.get("Title", "Untitled")
+                    authors = summary.get("AuthorList", [])
+                    journal = summary.get("FullJournalName", summary.get("Source", "Unknown"))
+                    year = summary.get("PubDate", "")[:4] if summary.get("PubDate") else "N/A"
+
+                    # Extract IDs
+                    article_ids = summary.get("ArticleIds", {})
+                    pmc_id = article_ids.get("pmc", "")
+                    doi = article_ids.get("doi", "")
+
+                    # Track statistics
+                    if pmc_id:
+                        stats["pmc_count"] += 1
+                    if doi:
+                        stats["doi_count"] += 1
+                    if year.isdigit():
+                        stats["years"].append(int(year))
+                    if journal:
+                        stats["journals"][journal] = stats["journals"].get(journal, 0) + 1
+
+                    # Format based on requested format type
+                    if format == "minimal":
+                        # Minimal format: single line
+                        content_parts.append(f"[{article_num}] {title} | PMID: {pmid}")
+                        if pmc_id:
+                            content_parts.append(f" | PMC: {pmc_id}")
+                        if doi:
+                            content_parts.append(f" | [{doi}]({get_doi_url(doi)})")
+                        content_parts.append("\n")
+
+                    elif format == "summary":
+                        # Summary format: title + key info + first sentence
+                        content_parts.append(f"### [{article_num}] {title}\n")
+                        content_parts.append(f"**PMID:** {pmid} | **Year:** {year}")
+                        if pmc_id:
+                            content_parts.append(f" | **PMC:** [{pmc_id}]({get_pmc_url(pmc_id)})")
+                        else:
+                            content_parts.append(" | **PMC:** null")
+                        content_parts.append("\n")
+
+                        # Get first sentence from abstract if available
+                        fetch_result = database.entrez_fetch(
+                            "pubmed", pmid, rettype="abstract", retmode="text"
+                        )
+                        if fetch_result["success"]:
+                            abstract = fetch_result["data"]
+                            # Extract first sentence (up to first period + space)
+                            first_sentence = abstract.split(". ")[0] + "."
+                            content_parts.append(f"**Key:** {first_sentence}\n")
+
+                        content_parts.append("---\n")
+
+                    elif format == "full":
+                        # Full format: complete abstract
+                        content_parts.append(f"## [{article_num}] {title}\n")
+                        content_parts.append(
+                            f"**PMID:** [{pmid}](https://pubmed.ncbi.nlm.nih.gov/{pmid}/)"
+                        )
+                        content_parts.append(f" | **Year:** {year} | **Journal:** {journal}\n")
+
+                        if doi:
+                            content_parts.append(f"**DOI:** [{doi}]({get_doi_url(doi)})")
+                        if pmc_id:
+                            content_parts.append(f" | **PMC:** [{pmc_id}]({get_pmc_url(pmc_id)})")
+                        content_parts.append("\n")
+
+                        # Authors
+                        if authors:
+                            author_names = [
+                                f"{a.get('LastName', '')} {a.get('Initials', '')}".strip()
+                                for a in authors[:10]
+                            ]
+                            content_parts.append(f"**Authors:** {', '.join(author_names)}")
+                            if len(authors) > 10:
+                                content_parts.append(f", et al. ({len(authors)} total)")
+                            content_parts.append("\n")
+
+                        # Fetch full abstract
+                        fetch_result = database.entrez_fetch(
+                            "pubmed", pmid, rettype="abstract", retmode="text"
+                        )
+                        if fetch_result["success"]:
+                            abstract = fetch_result["data"]
+                            content_parts.append("**Full Abstract:**\n")
+                            content_parts.append(f"{abstract}\n")
+                        else:
+                            content_parts.append("**Abstract:** Not available\n")
+
+                        content_parts.append("---\n")
+
+                    articles_written += 1
+
+                except Exception as e:
+                    # Write error note for this article but continue
+                    content_parts.append(
+                        f"\n**Error processing article {article_num}:** {str(e)}\n"
+                    )
                     continue
 
-                # Process each article in the batch immediately
-                for idx, summary in enumerate(summary_result["summaries"]):
-                    try:
-                        article_num = i + idx + 1
-                        partial_results = article_num
+        # Step 4: Write summary statistics at end
+        content_parts.append("\n## Summary Statistics\n")
+        content_parts.append(f"- **Total Articles:** {articles_written}")
+        content_parts.append(f"- **With PMC IDs:** {stats['pmc_count']}")
+        content_parts.append(f"- **With DOIs:** {stats['doi_count']}")
 
-                        # Extract metadata
-                        pmid = summary.get("Id", "")
-                        title = summary.get("Title", "Untitled")
-                        authors = summary.get("AuthorList", [])
-                        journal = summary.get("FullJournalName", summary.get("Source", "Unknown"))
-                        year = summary.get("PubDate", "")[:4] if summary.get("PubDate") else "N/A"
+        if stats["years"]:
+            content_parts.append(f"- **Year Range:** {min(stats['years'])} - {max(stats['years'])}")
 
-                        # Extract IDs
-                        article_ids = summary.get("ArticleIds", {})
-                        pmc_id = article_ids.get("pmc", "")
-                        doi = article_ids.get("doi", "")
+        if stats["journals"]:
+            top_journals = sorted(stats["journals"].items(), key=lambda x: x[1], reverse=True)[:5]
+            content_parts.append("\n**Top Journals:**")
+            for journal, count in top_journals:
+                content_parts.append(f"- {journal}: {count} articles")
 
-                        # Track statistics
-                        if pmc_id:
-                            stats["pmc_count"] += 1
-                        if doi:
-                            stats["doi_count"] += 1
-                        if year.isdigit():
-                            stats["years"].append(int(year))
-                        if journal:
-                            stats["journals"][journal] = stats["journals"].get(journal, 0) + 1
-
-                        # Format based on requested format type
-                        if format == "minimal":
-                            # Minimal format: single line
-                            f.write(f"[{article_num}] {title} | PMID: {pmid}")
-                            if pmc_id:
-                                f.write(f" | PMC: {pmc_id}")
-                            if doi:
-                                f.write(f" | [{doi}]({get_doi_url(doi)})")
-                            f.write("\n\n")
-
-                        elif format == "summary":
-                            # Summary format: title + key info + first sentence
-                            f.write(f"### [{article_num}] {title}\n\n")
-                            f.write(f"**PMID:** {pmid} | **Year:** {year}")
-                            if pmc_id:
-                                f.write(f" | **PMC:** [{pmc_id}]({get_pmc_url(pmc_id)})")
-                            else:
-                                f.write(" | **PMC:** null")
-                            f.write("\n\n")
-
-                            # Get first sentence from abstract if available
-                            if "abstract" in summary.get("Title", "").lower():
-                                # Try to fetch abstract
-                                fetch_result = database.entrez_fetch(
-                                    "pubmed", pmid, rettype="abstract", retmode="text"
-                                )
-                                if fetch_result["success"]:
-                                    abstract = fetch_result["data"]
-                                    # Extract first sentence (up to first period + space)
-                                    first_sentence = abstract.split(". ")[0] + "."
-                                    f.write(f"**Key:** {first_sentence}\n\n")
-
-                            f.write("---\n\n")
-
-                        elif format == "full":
-                            # Full format: complete abstract
-                            f.write(f"## [{article_num}] {title}\n\n")
-                            f.write(f"**PMID:** [{pmid}](https://pubmed.ncbi.nlm.nih.gov/{pmid}/)")
-                            f.write(f" | **Year:** {year} | **Journal:** {journal}\n")
-
-                            if doi:
-                                f.write(f"**DOI:** [{doi}]({get_doi_url(doi)})")
-                            if pmc_id:
-                                f.write(f" | **PMC:** [{pmc_id}]({get_pmc_url(pmc_id)})")
-                            f.write("\n\n")
-
-                            # Authors
-                            if authors:
-                                author_names = [
-                                    f"{a.get('LastName', '')} {a.get('Initials', '')}".strip()
-                                    for a in authors[:10]
-                                ]
-                                f.write(f"**Authors:** {', '.join(author_names)}")
-                                if len(authors) > 10:
-                                    f.write(f", et al. ({len(authors)} total)")
-                                f.write("\n\n")
-
-                            # Fetch full abstract
-                            fetch_result = database.entrez_fetch(
-                                "pubmed", pmid, rettype="abstract", retmode="text"
-                            )
-                            if fetch_result["success"]:
-                                abstract = fetch_result["data"]
-                                f.write("**Full Abstract:**\n\n")
-                                f.write(f"{abstract}\n\n")
-                            else:
-                                f.write("**Abstract:** Not available\n\n")
-
-                            f.write("---\n\n")
-
-                        articles_written += 1
-
-                        # Article data goes out of scope here and can be garbage collected
-
-                    except Exception as e:
-                        # Write error note for this article but continue
-                        f.write(f"\n**Error processing article {article_num}:** {str(e)}\n\n")
-                        continue
-
-            # Write summary statistics at end
-            f.write("\n## Summary Statistics\n\n")
-            f.write(f"- **Total Articles:** {articles_written}\n")
-            f.write(f"- **With PMC IDs:** {stats['pmc_count']}\n")
-            f.write(f"- **With DOIs:** {stats['doi_count']}\n")
-
-            if stats["years"]:
-                f.write(f"- **Year Range:** {min(stats['years'])} - {max(stats['years'])}\n")
-
-            if stats["journals"]:
-                top_journals = sorted(stats["journals"].items(), key=lambda x: x[1], reverse=True)[
-                    :5
-                ]
-                f.write("\n**Top Journals:**\n")
-                for journal, count in top_journals:
-                    f.write(f"- {journal}: {count} articles\n")
-
-        # Get file size
-        file_size_bytes = output_file.stat().st_size
-        file_size_kb = round(file_size_bytes / 1024, 2)
+        # Step 5: Combine all parts
+        full_content = "\n".join(content_parts)
+        file_size_kb = round(len(full_content.encode("utf-8")) / 1024, 2)
 
         # Calculate execution time
         execution_time = round(time.time() - start_time, 2)
@@ -500,30 +477,67 @@ def pubmed_review(
             ]
         ]
 
-        # Return metadata only (NOT file content)
-        return {
-            "status": "success",
-            "filepath": str(output_file.absolute()),
-            "articles_found": total_found,
-            "articles_written": articles_written,
-            "articles_with_pmc": stats["pmc_count"],
-            "articles_with_doi": stats["doi_count"],
-            "query": query,
-            "format": format,
-            "file_size_kb": file_size_kb,
-            "year_range": (
-                {"min": min(stats["years"]), "max": max(stats["years"])}
-                if stats["years"]
-                else {"min": 0, "max": 0}
-            ),
-            "top_journals": top_journals_list,
-            "execution_time_seconds": execution_time,
-        }
+        # Step 6: Return based on mode
+        if return_content:
+            # New mode: return content in JSON
+            return {
+                "status": "success",
+                "storage_mode": "content_return",
+                "content": full_content,
+                "filepath": output_path,
+                "articles_found": total_found,
+                "articles_written": articles_written,
+                "articles_with_pmc": stats["pmc_count"],
+                "articles_with_doi": stats["doi_count"],
+                "query": query,
+                "format": format,
+                "file_size_kb": file_size_kb,
+                "year_range": (
+                    {"min": min(stats["years"]), "max": max(stats["years"])}
+                    if stats["years"]
+                    else {"min": 0, "max": 0}
+                ),
+                "top_journals": top_journals_list,
+                "execution_time_seconds": execution_time,
+            }
+        else:
+            # Legacy mode: direct write to file
+            output_file = Path(output_path)
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+
+            try:
+                with open(output_file, "w", encoding="utf-8") as f:
+                    f.write(full_content)
+            except Exception as e:
+                return {
+                    "status": "error",
+                    "error_type": "write_error",
+                    "message": f"Cannot write to {output_path}: {str(e)}",
+                }
+
+            return {
+                "status": "success",
+                "storage_mode": "direct_write",
+                "filepath": str(output_file.absolute()),
+                "articles_found": total_found,
+                "articles_written": articles_written,
+                "articles_with_pmc": stats["pmc_count"],
+                "articles_with_doi": stats["doi_count"],
+                "query": query,
+                "format": format,
+                "file_size_kb": file_size_kb,
+                "year_range": (
+                    {"min": min(stats["years"]), "max": max(stats["years"])}
+                    if stats["years"]
+                    else {"min": 0, "max": 0}
+                ),
+                "top_journals": top_journals_list,
+                "execution_time_seconds": execution_time,
+            }
 
     except Exception as e:
         return {
             "status": "error",
             "error_type": "unknown",
             "message": f"Error creating literature review: {str(e)}",
-            "partial_results": partial_results,
         }
