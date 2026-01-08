@@ -13,7 +13,6 @@ PMC access should respect NCBI rate limits (same as Entrez):
 - 10 requests/second with API key
 """
 
-import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -244,13 +243,15 @@ def pubmed_review(
         # Generate filename with datetime + query slug
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         # Create query slug (first 30 chars, sanitize)
-        query_slug = query[:30].replace(" ", "_").replace("[", "").replace("]", "").replace("/", "_")
+        query_slug = (
+            query[:30].replace(" ", "_").replace("[", "").replace("]", "").replace("/", "_")
+        )
         filename = f"{timestamp}_{query_slug}.md"
-        
+
         # Join paths
         full_dir_path = Path(obsidian_vault) / storage_path
         output_path = full_dir_path / filename
-        
+
         # Create directory if it doesn't exist
         full_dir_path.mkdir(parents=True, exist_ok=True)
 
@@ -412,7 +413,7 @@ def pubmed_review(
 
         # Step 5: Combine all parts
         full_content = "\n".join(content_parts)
-        
+
         # Step 6: Write to file
         output_path.write_text(full_content, encoding="utf-8")
         file_size_kb = round(len(full_content.encode("utf-8")) / 1024, 2)
