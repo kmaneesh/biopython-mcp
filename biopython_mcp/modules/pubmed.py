@@ -15,7 +15,6 @@ PMC access should respect NCBI rate limits (same as Entrez):
 
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Any, TypedDict
 
 import httpx
@@ -179,32 +178,27 @@ def pubmed_review(
     format: str = "summary",
     max_results: int = 25,
     sort: str = "pub_date",
-    return_content: bool = True,
 ) -> dict[str, Any]:
     """
     Create a formatted literature review from PubMed search results.
 
     This function searches PubMed, fetches article metadata, formats it as
-    markdown, and returns the content for writing via Obsidian or filesystem.
+    markdown, and returns the content in JSON for Claude to write to the desired location.
 
     Args:
         query: PubMed search query (supports full Entrez syntax including year filters)
             Example: "BRCA1 AND breast cancer AND 2020:2024[PDAT]"
-        output_path: Target filepath (for reference; actual writing done by caller when return_content=True)
+        output_path: Target filepath (for reference; Claude handles actual writing)
         format: Output format - "full", "summary", or "minimal" (default: "summary")
             - "summary": Title + key findings + metadata (~60 tokens/article)
             - "full": Complete abstracts (~250 tokens/article)
             - "minimal": Title + links only (~20 tokens/article)
         max_results: Maximum number of articles to include (default: 25, max: 1000)
         sort: Sort order - "pub_date", "relevance", etc. (default: "pub_date")
-        return_content: If True (default), returns content in JSON response.
-                       If False, writes directly to output_path (legacy mode, deprecated)
 
     Returns:
-        Dictionary with metadata:
-        When return_content=True:
-            - status: "success", "partial_success", or "error"
-            - storage_mode: "content_return"
+        Dictionary with review content and metadata:
+            - status: "success" or "error"
             - content: Full markdown content (ready to write)
             - filepath: Target path from output_path parameter
             - articles_found: Total number of articles found
@@ -218,35 +212,29 @@ def pubmed_review(
             - top_journals: List of top 5 journals by article count
             - execution_time_seconds: Time taken to generate review
 
-        When return_content=False (legacy):
-            - status: "success" or "error"
-            - storage_mode: "direct_write"
-            - filepath: Actual path written to
-            - (same metadata fields as above, but NO "content" field)
-
     Examples:
-        >>> # Via Claude (automatic storage):
+        >>> # Returns content in JSON for Claude to write
         >>> result = pubmed_review(
         ...     query="COL4A3[Gene] AND Alport syndrome",
         ...     output_path="KB/pubmed/alport_review.md"
         ... )
-        >>> # Claude automatically writes result["content"] to Obsidian
+        >>> # Claude automatically writes result["content"] to Obsidian or filesystem
 
-        >>> # Direct filesystem write (standalone):
+        >>> # Full format with more results
         >>> result = pubmed_review(
         ...     query="BRCA1 AND breast cancer AND 2020:2024[PDAT]",
-        ...     output_path="/path/to/file.md",
+        ...     output_path="reviews/brca1_review.md",
         ...     format="full",
-        ...     max_results=50,
-        ...     return_content=False
+        ...     max_results=50
         ... )
 
     Notes:
+        - Returns content in JSON (MCP best practice: server generates, client writes)
         - Uses memory-efficient content generation
         - Fetches articles in batches of 20 (NCBI limit)
-        - Returns metadata only when return_content=False (saves tokens)
         - Respects NCBI rate limits (3/sec or 10/sec with API key)
         - For very large reviews (>500 articles), consider splitting into multiple calls
+        - Includes Obsidian-compatible YAML frontmatter
     """
     start_time = time.time()
     articles_written = 0
@@ -477,63 +465,26 @@ def pubmed_review(
             ]
         ]
 
-        # Step 6: Return based on mode
-        if return_content:
-            # New mode: return content in JSON
-            return {
-                "status": "success",
-                "storage_mode": "content_return",
-                "content": full_content,
-                "filepath": output_path,
-                "articles_found": total_found,
-                "articles_written": articles_written,
-                "articles_with_pmc": stats["pmc_count"],
-                "articles_with_doi": stats["doi_count"],
-                "query": query,
-                "format": format,
-                "file_size_kb": file_size_kb,
-                "year_range": (
-                    {"min": min(stats["years"]), "max": max(stats["years"])}
-                    if stats["years"]
-                    else {"min": 0, "max": 0}
-                ),
-                "top_journals": top_journals_list,
-                "execution_time_seconds": execution_time,
-            }
-        else:
-            # Legacy mode: direct write to file
-            output_file = Path(output_path)
-            output_file.parent.mkdir(parents=True, exist_ok=True)
-
-            try:
-                with open(output_file, "w", encoding="utf-8") as f:
-                    f.write(full_content)
-            except Exception as e:
-                return {
-                    "status": "error",
-                    "error_type": "write_error",
-                    "message": f"Cannot write to {output_path}: {str(e)}",
-                }
-
-            return {
-                "status": "success",
-                "storage_mode": "direct_write",
-                "filepath": str(output_file.absolute()),
-                "articles_found": total_found,
-                "articles_written": articles_written,
-                "articles_with_pmc": stats["pmc_count"],
-                "articles_with_doi": stats["doi_count"],
-                "query": query,
-                "format": format,
-                "file_size_kb": file_size_kb,
-                "year_range": (
-                    {"min": min(stats["years"]), "max": max(stats["years"])}
-                    if stats["years"]
-                    else {"min": 0, "max": 0}
-                ),
-                "top_journals": top_journals_list,
-                "execution_time_seconds": execution_time,
-            }
+        # Step 6: Return content in JSON
+        return {
+            "status": "success",
+            "content": full_content,
+            "filepath": output_path,
+            "articles_found": total_found,
+            "articles_written": articles_written,
+            "articles_with_pmc": stats["pmc_count"],
+            "articles_with_doi": stats["doi_count"],
+            "query": query,
+            "format": format,
+            "file_size_kb": file_size_kb,
+            "year_range": (
+                {"min": min(stats["years"]), "max": max(stats["years"])}
+                if stats["years"]
+                else {"min": 0, "max": 0}
+            ),
+            "top_journals": top_journals_list,
+            "execution_time_seconds": execution_time,
+        }
 
     except Exception as e:
         return {

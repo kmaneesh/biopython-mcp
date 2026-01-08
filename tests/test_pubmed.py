@@ -116,8 +116,8 @@ class TestPubMedReview:
     """Tests for pubmed_review function."""
 
     @patch("biopython_mcp.database")
-    def test_pubmed_review_content_return_mode_full_format(self, mock_database: MagicMock) -> None:
-        """Test new default mode: return content in JSON (full format)."""
+    def test_pubmed_review_full_format(self, mock_database: MagicMock) -> None:
+        """Test review generation with full format."""
         # Mock search result
         mock_database.entrez_search.return_value = {
             "success": True,
@@ -154,7 +154,6 @@ class TestPubMedReview:
         )
 
         assert result["status"] == "success"
-        assert result["storage_mode"] == "content_return"
         assert "content" in result
         assert isinstance(result["content"], str)
         assert result["content"].startswith("---")  # YAML frontmatter
@@ -163,64 +162,6 @@ class TestPubMedReview:
         assert result["articles_written"] == 1
         assert result["filepath"] == "/tmp/test.md"
         assert "file_size_kb" in result
-
-    @patch("biopython_mcp.database")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("biopython_mcp.modules.pubmed.Path")
-    def test_pubmed_review_legacy_direct_write_mode(
-        self, mock_path: MagicMock, mock_file: MagicMock, mock_database: MagicMock
-    ) -> None:
-        """Test legacy mode: direct file write with return_content=False."""
-        # Mock search result
-        mock_database.entrez_search.return_value = {
-            "success": True,
-            "ids": ["12345"],
-            "total_found": 1,
-        }
-
-        # Mock summary result
-        mock_database.entrez_summary.return_value = {
-            "success": True,
-            "summaries": [
-                {
-                    "Id": "12345",
-                    "Title": "Test Article",
-                    "AuthorList": [{"LastName": "Smith", "Initials": "J"}],
-                    "FullJournalName": "Test Journal",
-                    "PubDate": "2024",
-                    "ArticleIds": {"pmc": "PMC123", "doi": "10.1234/test"},
-                }
-            ],
-        }
-
-        # Mock fetch result for abstract
-        mock_database.entrez_fetch.return_value = {
-            "success": True,
-            "data": "Test abstract content.",
-        }
-
-        # Mock path operations
-        mock_path_instance = MagicMock()
-        mock_path_instance.parent.mkdir = MagicMock()
-        mock_path_instance.stat.return_value.st_size = 1024
-        mock_path_instance.absolute.return_value = "/tmp/test.md"
-        mock_path.return_value = mock_path_instance
-
-        result = pubmed.pubmed_review(
-            query="test query",
-            output_path="/tmp/test.md",
-            format="full",
-            max_results=2,
-            return_content=False,  # Legacy mode
-        )
-
-        assert result["status"] == "success"
-        assert result["storage_mode"] == "direct_write"
-        assert "content" not in result  # Should NOT include content in legacy mode
-        assert result["articles_written"] == 1
-        assert result["filepath"] == "/tmp/test.md"
-        assert "file_size_kb" in result
-        mock_file.assert_called()  # Verify file was written
 
     @patch("biopython_mcp.database")
     def test_pubmed_review_invalid_output_path(self, mock_database: MagicMock) -> None:
@@ -268,8 +209,8 @@ class TestPubMedReview:
         assert "No articles found" in result["message"]
 
     @patch("biopython_mcp.database")
-    def test_pubmed_review_content_return_minimal_format(self, mock_database: MagicMock) -> None:
-        """Test content return mode with minimal format."""
+    def test_pubmed_review_minimal_format(self, mock_database: MagicMock) -> None:
+        """Test review generation with minimal format."""
         mock_database.entrez_search.return_value = {
             "success": True,
             "ids": ["12345"],
@@ -291,14 +232,13 @@ class TestPubMedReview:
         result = pubmed.pubmed_review(query="test", output_path="/tmp/test.md", format="minimal")
 
         assert result["status"] == "success"
-        assert result["storage_mode"] == "content_return"
         assert result["format"] == "minimal"
         assert "content" in result
         assert "Test Article" in result["content"]
 
     @patch("biopython_mcp.database")
-    def test_pubmed_review_content_return_summary_format(self, mock_database: MagicMock) -> None:
-        """Test content return mode with summary format."""
+    def test_pubmed_review_summary_format(self, mock_database: MagicMock) -> None:
+        """Test review generation with summary format."""
         mock_database.entrez_search.return_value = {
             "success": True,
             "ids": ["12345"],
@@ -325,50 +265,13 @@ class TestPubMedReview:
         result = pubmed.pubmed_review(query="test", output_path="/tmp/test.md", format="summary")
 
         assert result["status"] == "success"
-        assert result["storage_mode"] == "content_return"
         assert result["format"] == "summary"
         assert "content" in result
         assert "Test abstract Article" in result["content"]
         assert "First sentence" in result["content"]
 
     @patch("biopython_mcp.database")
-    @patch("builtins.open", side_effect=PermissionError("Cannot write"))
-    @patch("biopython_mcp.modules.pubmed.Path")
-    def test_pubmed_review_write_error_legacy_mode(
-        self, mock_path: MagicMock, mock_file: MagicMock, mock_database: MagicMock
-    ) -> None:
-        """Test review when file cannot be written in legacy mode."""
-        mock_database.entrez_search.return_value = {
-            "success": True,
-            "ids": ["12345"],
-            "total_found": 1,
-        }
-
-        mock_database.entrez_summary.return_value = {
-            "success": True,
-            "summaries": [
-                {
-                    "Id": "12345",
-                    "Title": "Test Article",
-                    "PubDate": "2024",
-                    "ArticleIds": {},
-                }
-            ],
-        }
-
-        mock_path_instance = MagicMock()
-        mock_path_instance.parent.mkdir = MagicMock()
-        mock_path.return_value = mock_path_instance
-
-        result = pubmed.pubmed_review(
-            query="test", output_path="/tmp/test.md", return_content=False
-        )
-
-        assert result["status"] == "error"
-        assert result["error_type"] == "write_error"
-
-    @patch("biopython_mcp.database")
-    def test_pubmed_review_obsidian_frontmatter_included(self, mock_database: MagicMock) -> None:
+    def test_pubmed_review_obsidian_frontmatter(self, mock_database: MagicMock) -> None:
         """Test that Obsidian YAML frontmatter is included in content."""
         mock_database.entrez_search.return_value = {
             "success": True,
@@ -394,7 +297,6 @@ class TestPubMedReview:
         result = pubmed.pubmed_review(query="test query", output_path="/tmp/test.md")
 
         assert result["status"] == "success"
-        assert result["storage_mode"] == "content_return"
         assert "content" in result
         # Verify Obsidian YAML frontmatter is present
         assert result["content"].startswith("---")
