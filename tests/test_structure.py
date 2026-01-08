@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, mock_open, patch
 
-import pytest
-
 from biopython_mcp import structure
 
 

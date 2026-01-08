@@ -1,10 +1,7 @@
 """Tests for utility functions."""
 
-import json
-import tempfile
 import time
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -105,7 +102,7 @@ class TestParseFasta:
         fasta = ">seq1\nATCG\nGCTA\nTAGC"
         records = utils.parse_fasta(fasta)
         assert len(records) == 1
-        assert records[0]["sequence"] == "ATCGGCTAGC"
+        assert records[0]["sequence"] == "ATCGGCTATAGC"  # ATCG + GCTA + TAGC
 
     def test_empty_lines(self) -> None:
         """Test parsing FASTA with empty lines."""
@@ -151,7 +148,7 @@ class TestCalculateMolecularWeight:
     def test_protein_weight(self) -> None:
         """Test protein molecular weight calculation."""
         weight = utils.calculate_molecular_weight("AAA", seq_type="protein")
-        assert weight == 89.1 * 3
+        assert weight == pytest.approx(89.1 * 3)
 
     def test_dna_weight(self) -> None:
         """Test DNA molecular weight calculation."""
@@ -374,9 +371,8 @@ class TestCaching:
         params = {"query": "test"}
         utils.set_cached_result("test_db", "search", params, {"func": lambda: None})
 
-        # Getting should return None since set failed
-        result = utils.get_cached_result("test_db", "search", params)
-        # Result might be None or might have been cached from previous tests
+        # Getting should return None since set failed - but we don't need to verify
+        # since the important part is that set_cached_result didn't raise an exception
 
     def test_get_cached_result_corrupted_file(self) -> None:
         """Test getting cached result from corrupted file."""

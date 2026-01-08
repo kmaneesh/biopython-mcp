@@ -1,8 +1,8 @@
 """Clinical bioinformatics workflow example."""
 
-from biopython_mcp.sequence import calculate_gc_content, translate_sequence
 from biopython_mcp.alignment import pairwise_align
-from biopython_mcp.database import fetch_genbank, search_pubmed
+from biopython_mcp.database import search_pubmed
+from biopython_mcp.sequence import calculate_gc_content, translate_sequence
 
 
 def analyze_patient_mutation() -> None:
@@ -78,7 +78,9 @@ def analyze_patient_mutation() -> None:
     if ref_gc["success"] and pat_gc["success"]:
         print(f"Reference GC%: {ref_gc['gc_content_percent']}%")
         print(f"Patient GC%: {pat_gc['gc_content_percent']}%")
-        print(f"Difference: {abs(ref_gc['gc_content_percent'] - pat_gc['gc_content_percent']):.2f}%\n")
+        print(
+            f"Difference: {abs(ref_gc['gc_content_percent'] - pat_gc['gc_content_percent']):.2f}%\n"
+        )
 
     print("\nStep 6: Clinical Interpretation")
     print("-" * 50)

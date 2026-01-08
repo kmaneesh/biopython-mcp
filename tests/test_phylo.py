@@ -1,9 +1,7 @@
 """Tests for phylogenetics module."""
 
-from io import StringIO
-from unittest.mock import MagicMock, mock_open, patch
-
-import pytest
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 from biopython_mcp import phylo
 
@@ -13,12 +11,10 @@ class TestBuildPhylogeneticTree:
 
     @patch("biopython_mcp.phylo.Phylo")
     @patch("biopython_mcp.phylo.AlignIO")
-    @patch("biopython_mcp.phylo.DistanceCalculator")
     @patch("biopython_mcp.phylo.DistanceTreeConstructor")
     def test_build_tree_upgma_success(
         self,
         mock_constructor: MagicMock,
-        mock_calculator: MagicMock,
         mock_alignio: MagicMock,
         mock_phylo: MagicMock,
     ) -> None:
@@ -27,36 +23,32 @@ class TestBuildPhylogeneticTree:
         mock_alignment = MagicMock()
         mock_alignio.read.return_value = mock_alignment
 
-        # Mock distance matrix
-        mock_calc_instance = MagicMock()
-        mock_distance_matrix = MagicMock()
-        mock_calc_instance.get_distance.return_value = mock_distance_matrix
-        mock_calculator.return_value = mock_calc_instance
-
-        # Mock tree
+        # Mock tree constructor
         mock_tree = MagicMock()
         mock_constructor_instance = MagicMock()
-        mock_constructor_instance.upgma.return_value = mock_tree
+        mock_constructor_instance.build_tree.return_value = mock_tree
         mock_constructor.return_value = mock_constructor_instance
 
-        # Mock tree writing
-        tree_str = StringIO()
-        mock_phylo.write.return_value = None
+        # Mock tree writing - Phylo.write writes to StringIO
+        def mock_write(tree: Any, file_handle: Any, format: str) -> None:
+            file_handle.write("((Seq1:0.1,Seq2:0.2):0.3,Seq3:0.4);")
 
-        result = phylo.build_phylogenetic_tree("/tmp/test.fasta", method="upgma")
+        mock_phylo.write.side_effect = mock_write
+
+        sequences = ["ATCG", "ATGG", "GTCG"]
+        result = phylo.build_phylogenetic_tree(sequences, method="upgma")
 
         assert result["success"] is True
         assert result["method"] == "upgma"
-        assert "tree" in result
+        assert "tree_newick" in result
+        assert result["num_sequences"] == 3
 
     @patch("biopython_mcp.phylo.Phylo")
     @patch("biopython_mcp.phylo.AlignIO")
-    @patch("biopython_mcp.phylo.DistanceCalculator")
     @patch("biopython_mcp.phylo.DistanceTreeConstructor")
     def test_build_tree_nj_success(
         self,
         mock_constructor: MagicMock,
-        mock_calculator: MagicMock,
         mock_alignio: MagicMock,
         mock_phylo: MagicMock,
     ) -> None:
@@ -64,50 +56,59 @@ class TestBuildPhylogeneticTree:
         mock_alignment = MagicMock()
         mock_alignio.read.return_value = mock_alignment
 
-        mock_calc_instance = MagicMock()
-        mock_distance_matrix = MagicMock()
-        mock_calc_instance.get_distance.return_value = mock_distance_matrix
-        mock_calculator.return_value = mock_calc_instance
-
         mock_tree = MagicMock()
         mock_constructor_instance = MagicMock()
-        mock_constructor_instance.nj.return_value = mock_tree
+        mock_constructor_instance.build_tree.return_value = mock_tree
         mock_constructor.return_value = mock_constructor_instance
 
-        mock_phylo.write.return_value = None
+        def mock_write(tree: Any, file_handle: Any, format: str) -> None:
+            file_handle.write("((Seq1:0.1,Seq2:0.2):0.3,Seq3:0.4);")
 
-        result = phylo.build_phylogenetic_tree("/tmp/test.fasta", method="nj")
+        mock_phylo.write.side_effect = mock_write
+
+        sequences = ["ATCG", "ATGG", "GTCG"]
+        result = phylo.build_phylogenetic_tree(sequences, method="nj")
 
         assert result["success"] is True
         assert result["method"] == "nj"
-        mock_constructor_instance.nj.assert_called_once()
+        assert "tree_newick" in result
 
     def test_build_tree_invalid_method(self) -> None:
         """Test tree building with invalid method."""
-        result = phylo.build_phylogenetic_tree("/tmp/test.fasta", method="invalid")
+        sequences = ["ATCG", "ATGG", "GTCG"]
+        result = phylo.build_phylogenetic_tree(sequences, method="invalid")
 
         assert result["success"] is False
         assert "method" in result["error"].lower()
 
-    @patch("biopython_mcp.phylo.AlignIO")
-    def test_build_tree_file_not_found(self, mock_alignio: MagicMock) -> None:
-        """Test tree building with non-existent file."""
-        mock_alignio.read.side_effect = FileNotFoundError("File not found")
-
-        result = phylo.build_phylogenetic_tree("/nonexistent/file.fasta")
+    def test_build_tree_too_few_sequences(self) -> None:
+        """Test tree building with too few sequences."""
+        sequences = ["ATCG", "ATGG"]
+        result = phylo.build_phylogenetic_tree(sequences)
 
         assert result["success"] is False
-        assert "error" in result
+        assert "at least 3" in result["error"].lower()
 
     @patch("biopython_mcp.phylo.AlignIO")
     def test_build_tree_parse_error(self, mock_alignio: MagicMock) -> None:
         """Test tree building with parse error."""
         mock_alignio.read.side_effect = Exception("Parse error")
 
-        result = phylo.build_phylogenetic_tree("/tmp/test.fasta")
+        sequences = ["ATCG", "ATGG", "GTCG"]
+        result = phylo.build_phylogenetic_tree(sequences)
 
         assert result["success"] is False
         assert "Parse error" in result["error"]
+
+    def test_build_tree_label_mismatch(self) -> None:
+        """Test tree building with mismatched labels."""
+        sequences = ["ATCG", "ATGG", "GTCG"]
+        labels = ["Seq1", "Seq2"]  # Only 2 labels for 3 sequences
+
+        result = phylo.build_phylogenetic_tree(sequences, labels=labels)
+
+        assert result["success"] is False
+        assert "labels must match" in result["error"].lower()
 
 
 class TestCalculateDistanceMatrix:
@@ -126,17 +127,20 @@ class TestCalculateDistanceMatrix:
         # Mock distance matrix
         mock_calc_instance = MagicMock()
         mock_matrix = MagicMock()
-        mock_matrix.names = ["seq1", "seq2"]
-        mock_matrix.matrix = [[0.0], [0.5, 0.0]]
+        mock_matrix.names = ["Seq1", "Seq2"]
+        # Mock __getitem__ for matrix access
+        mock_matrix.__getitem__ = lambda self, idx: [0.0, 0.5][idx[0]] if idx[0] != idx[1] else 0.0
         mock_calc_instance.get_distance.return_value = mock_matrix
         mock_calculator.return_value = mock_calc_instance
 
-        result = phylo.calculate_distance_matrix("/tmp/test.fasta")
+        sequences = ["ATCG", "ATGG"]
+        result = phylo.calculate_distance_matrix(sequences)
 
         assert result["success"] is True
-        assert "matrix" in result
-        assert "names" in result
-        assert result["names"] == ["seq1", "seq2"]
+        assert "distance_matrix" in result
+        assert "labels" in result
+        assert result["labels"] == ["Seq1", "Seq2"]
+        assert result["num_sequences"] == 2
 
     @patch("biopython_mcp.phylo.AlignIO")
     @patch("biopython_mcp.phylo.DistanceCalculator")
@@ -149,58 +153,72 @@ class TestCalculateDistanceMatrix:
 
         mock_calc_instance = MagicMock()
         mock_matrix = MagicMock()
-        mock_matrix.names = ["seq1"]
-        mock_matrix.matrix = [[0.0]]
+        mock_matrix.names = ["Seq1", "Seq2"]
+        mock_matrix.__getitem__ = lambda self, idx: 0.0 if idx[0] == idx[1] else 0.3
         mock_calc_instance.get_distance.return_value = mock_matrix
         mock_calculator.return_value = mock_calc_instance
 
-        result = phylo.calculate_distance_matrix("/tmp/test.fasta", model="blosum62")
+        sequences = ["ATCG", "ATGG"]
+        result = phylo.calculate_distance_matrix(sequences, model="blosum62")
 
         assert result["success"] is True
         assert result["model"] == "blosum62"
 
-    @patch("biopython_mcp.phylo.AlignIO")
-    def test_calculate_distance_matrix_file_not_found(self, mock_alignio: MagicMock) -> None:
-        """Test distance matrix with non-existent file."""
-        mock_alignio.read.side_effect = FileNotFoundError("File not found")
-
-        result = phylo.calculate_distance_matrix("/nonexistent/file.fasta")
+    def test_calculate_distance_matrix_too_few_sequences(self) -> None:
+        """Test distance matrix with too few sequences."""
+        sequences = ["ATCG"]
+        result = phylo.calculate_distance_matrix(sequences)
 
         assert result["success"] is False
-        assert "error" in result
+        assert "at least 2" in result["error"].lower()
 
     @patch("biopython_mcp.phylo.AlignIO")
     def test_calculate_distance_matrix_error(self, mock_alignio: MagicMock) -> None:
         """Test distance matrix calculation error."""
         mock_alignio.read.side_effect = Exception("Calculation error")
 
-        result = phylo.calculate_distance_matrix("/tmp/test.fasta")
+        sequences = ["ATCG", "ATGG"]
+        result = phylo.calculate_distance_matrix(sequences)
 
         assert result["success"] is False
         assert "Calculation error" in result["error"]
+
+    def test_calculate_distance_matrix_label_mismatch(self) -> None:
+        """Test distance matrix with mismatched labels."""
+        sequences = ["ATCG", "ATGG"]
+        labels = ["Seq1"]  # Only 1 label for 2 sequences
+
+        result = phylo.calculate_distance_matrix(sequences, labels=labels)
+
+        assert result["success"] is False
+        assert "labels must match" in result["error"].lower()
 
 
 class TestDrawTree:
     """Tests for draw_tree function."""
 
     @patch("biopython_mcp.phylo.Phylo")
-    @patch("biopython_mcp.phylo.matplotlib")
-    def test_draw_tree_success(self, mock_matplotlib: MagicMock, mock_phylo: MagicMock) -> None:
-        """Test successful tree drawing."""
+    def test_draw_tree_success(self, mock_phylo: MagicMock) -> None:
+        """Test successful tree drawing in ASCII format."""
         # Mock tree
         mock_tree = MagicMock()
-        mock_stringio = StringIO(">tree\nA:0.1,B:0.2;")
+        mock_tree.count_terminals.return_value = 3
         mock_phylo.read.return_value = mock_tree
 
-        # Mock matplotlib
-        mock_pyplot = MagicMock()
-        mock_matplotlib.pyplot = mock_pyplot
+        # Mock draw_ascii - it writes to StringIO
+        def mock_draw_ascii(tree: Any, file: Any) -> None:
+            file.write("  _____ Seq1\n _|\n  |____ Seq2\n|\n|_______ Seq3\n")
 
-        result = phylo.draw_tree(">tree\nA:0.1,B:0.2;", output_file="/tmp/tree.png")
+        mock_phylo.draw_ascii = mock_draw_ascii
+
+        tree_newick = "((Seq1:0.1,Seq2:0.2):0.3,Seq3:0.4);"
+        result = phylo.draw_tree(tree_newick, output_format="ascii")
 
         assert result["success"] is True
-        assert result["output_file"] == "/tmp/tree.png"
-        mock_pyplot.savefig.assert_called_once_with("/tmp/tree.png")
+        assert result["format"] == "ascii"
+        assert "visualization" in result
+        assert result["num_terminals"] == 3
+        assert "Seq1" in result["visualization"]
 
     @patch("biopython_mcp.phylo.Phylo")
     def test_draw_tree_parse_error(self, mock_phylo: MagicMock) -> None:
@@ -212,35 +230,28 @@ class TestDrawTree:
         assert result["success"] is False
         assert "Invalid tree format" in result["error"]
 
-    @patch("biopython_mcp.phylo.Phylo")
-    @patch("biopython_mcp.phylo.matplotlib")
-    def test_draw_tree_save_error(self, mock_matplotlib: MagicMock, mock_phylo: MagicMock) -> None:
-        """Test tree drawing with save error."""
-        mock_tree = MagicMock()
-        mock_phylo.read.return_value = mock_tree
-
-        mock_pyplot = MagicMock()
-        mock_pyplot.savefig.side_effect = Exception("Cannot write file")
-        mock_matplotlib.pyplot = mock_pyplot
-
-        result = phylo.draw_tree(">tree\nA:0.1;", output_file="/tmp/tree.png")
+    def test_draw_tree_unsupported_format(self) -> None:
+        """Test tree drawing with unsupported format."""
+        tree_newick = "((Seq1:0.1,Seq2:0.2):0.3,Seq3:0.4);"
+        result = phylo.draw_tree(tree_newick, output_format="png")
 
         assert result["success"] is False
-        assert "Cannot write file" in result["error"]
+        assert "unsupported format" in result["error"].lower()
 
     @patch("biopython_mcp.phylo.Phylo")
-    @patch("biopython_mcp.phylo.matplotlib")
-    def test_draw_tree_default_output(
-        self, mock_matplotlib: MagicMock, mock_phylo: MagicMock
-    ) -> None:
-        """Test tree drawing with default output file."""
+    def test_draw_tree_default_format(self, mock_phylo: MagicMock) -> None:
+        """Test tree drawing with default (ascii) format."""
         mock_tree = MagicMock()
+        mock_tree.count_terminals.return_value = 2
         mock_phylo.read.return_value = mock_tree
 
-        mock_pyplot = MagicMock()
-        mock_matplotlib.pyplot = mock_pyplot
+        def mock_draw_ascii(tree: Any, file: Any) -> None:
+            file.write(" ___ A\n|\n|___ B\n")
 
-        result = phylo.draw_tree(">tree\nA:0.1;")
+        mock_phylo.draw_ascii = mock_draw_ascii
+
+        tree_newick = "(A:0.1,B:0.2);"
+        result = phylo.draw_tree(tree_newick)
 
         assert result["success"] is True
-        assert result["output_file"] == "phylogenetic_tree.png"
+        assert result["format"] == "ascii"
