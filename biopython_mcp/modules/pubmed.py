@@ -386,7 +386,7 @@ def pubmed_review(
                                 name = str(a)
                             if name:
                                 author_names.append(name)
-                        
+
                         if author_names:
                             content_parts.append(f"**Authors:** {', '.join(author_names)}")
                             if len(authors) > 10:
