@@ -246,6 +246,7 @@ def pubmed_review(
     try:
         # Import here to avoid circular dependency
         import os
+
         from biopython_mcp import database
 
         # Get vault path from parameter or environment variable
