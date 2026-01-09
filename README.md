@@ -142,7 +142,8 @@ Add to your Claude Desktop configuration file:
       "args": ["biopython-mcp"],
       "env": {
         "NCBI_EMAIL": "you@example.com",
-        "NCBI_API_KEY": "your_ncbi_api_key"
+        "NCBI_API_KEY": "your_ncbi_api_key",
+        "OBSIDIAN_VAULT_PATH": "/Users/yourname/Documents/ObsidianVault"
       }
     }
   }
@@ -157,7 +158,8 @@ Add to your Claude Desktop configuration file:
       "command": "biopython-mcp",
       "env": {
         "NCBI_EMAIL": "you@example.com",
-        "NCBI_API_KEY": "your_ncbi_api_key"
+        "NCBI_API_KEY": "your_ncbi_api_key",
+        "OBSIDIAN_VAULT_PATH": "/Users/yourname/Documents/ObsidianVault"
       }
     }
   }
@@ -173,7 +175,8 @@ Add to your Claude Desktop configuration file:
       "args": ["--from", "/path/to/biopython-mcp", "biopython-mcp"],
       "env": {
         "NCBI_EMAIL": "you@example.com",
-        "NCBI_API_KEY": "your_ncbi_api_key"
+        "NCBI_API_KEY": "your_ncbi_api_key",
+        "OBSIDIAN_VAULT_PATH": "/Users/yourname/Documents/ObsidianVault"
       }
     }
   }
@@ -249,12 +252,16 @@ See the [Tools Reference](docs/tools-reference.md) for detailed documentation.
 
 - `NCBI_EMAIL`: Email address for NCBI Entrez queries (recommended)
 - `NCBI_API_KEY`: API key for higher NCBI rate limits (optional)
+- `OBSIDIAN_VAULT_PATH`: Path to your Obsidian vault root directory (optional, for pubmed_review)
+  - When set, the LLM will determine the directory path and filename for saving literature reviews
+  - Can be overridden per-call with the `obsidian_vault` parameter
 
 ### Setting Environment Variables
 
 ```bash
 export NCBI_EMAIL="your.email@example.com"
 export NCBI_API_KEY="your_api_key_here"
+export OBSIDIAN_VAULT_PATH="/Users/yourname/Documents/ObsidianVault"
 ```
 
 ## Examples

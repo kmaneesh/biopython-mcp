@@ -175,8 +175,9 @@ def get_doi_url(doi: str) -> str:
 
 def pubmed_review(
     query: str,
-    obsidian_vault: str,
-    storage_path: str,
+    path: str,
+    filename: str,
+    obsidian_vault: str | None = None,
     max_results: int = 25,
     sort: str = "pub_date",
 ) -> dict[str, Any]:
@@ -185,13 +186,17 @@ def pubmed_review(
 
     This function searches PubMed, fetches article metadata, formats it as
     markdown with complete abstracts, and writes the content directly to a file.
-    The filename is auto-generated with datetime and query indication.
+    The LLM determines both the storage location and filename.
 
     Args:
         query: PubMed search query (supports full Entrez syntax including year filters)
             Example: "BRCA1 AND breast cancer AND 2020:2024[PDAT]"
-        obsidian_vault: Path to the Obsidian vault (e.g., "/Users/user/Documents/MyVault")
-        storage_path: Relative path within the vault to store the file (e.g., "KB/pubmed")
+        path: Relative directory path within vault (e.g., "research/cancer" or "genetics/reviews")
+            The LLM decides the directory structure.
+        filename: Name of the markdown file (e.g., "brca1_review_2024.md" or "alport_syndrome.md")
+            The LLM decides the filename. Should include .md extension.
+        obsidian_vault: Path to Obsidian vault root (optional, defaults to OBSIDIAN_VAULT_PATH env variable)
+            Example: "/Users/user/Documents/MyVault"
         max_results: Maximum number of articles to include (default: 25, max: 1000)
         sort: Sort order - "pub_date", "relevance", etc. (default: "pub_date")
 
@@ -210,49 +215,54 @@ def pubmed_review(
             - execution_time_seconds: Time taken to generate review
 
     Examples:
+        >>> # Using environment variable for vault path
         >>> result = pubmed_review(
         ...     query="COL4A3[Gene] AND Alport syndrome",
-        ...     obsidian_vault="/Users/user/Documents/Obsidian",
-        ...     storage_path="KB/pubmed"
+        ...     path="genetics/reviews",
+        ...     filename="alport_syndrome_2024.md"
         ... )
-        >>> # File written to: /Users/user/Documents/Obsidian/KB/pubmed/20260108_143025_COL4A3_Gene_AND_Alport.md
 
-        >>> # More results
+        >>> # Overriding vault path
         >>> result = pubmed_review(
         ...     query="BRCA1 AND breast cancer AND 2020:2024[PDAT]",
+        ...     path="oncology/brca1",
+        ...     filename="literature_review_jan2024.md",
         ...     obsidian_vault="/Users/user/Vault",
-        ...     storage_path="research/cancer",
         ...     max_results=50
         ... )
 
     Notes:
+        - Vault path comes from OBSIDIAN_VAULT_PATH environment variable or obsidian_vault parameter
+        - LLM controls both directory structure (path) and filename separately
         - Writes markdown file directly to disk with complete abstracts
         - Fetches articles in batches of 20 (NCBI limit)
         - Respects NCBI rate limits (3/sec or 10/sec with API key)
         - For very large reviews (>500 articles), consider splitting into multiple calls
         - Includes Obsidian-compatible YAML frontmatter
-        - Filename format: YYYYMMDD_HHMMSS_query_slug.md
     """
     start_time = time.time()
     articles_written = 0
 
     try:
         # Import here to avoid circular dependency
+        import os
         from biopython_mcp import database
 
-        # Generate filename with datetime + query slug
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # Create query slug (first 30 chars, sanitize)
-        query_slug = (
-            query[:30].replace(" ", "_").replace("[", "").replace("]", "").replace("/", "_")
-        )
-        filename = f"{timestamp}_{query_slug}.md"
+        # Get vault path from parameter or environment variable
+        if obsidian_vault is None:
+            obsidian_vault = os.environ.get("OBSIDIAN_VAULT_PATH")
+            if obsidian_vault is None:
+                return {
+                    "status": "error",
+                    "error_type": "configuration_error",
+                    "message": "obsidian_vault parameter not provided and OBSIDIAN_VAULT_PATH environment variable not set",
+                }
 
-        # Join paths
-        full_dir_path = Path(obsidian_vault) / storage_path
+        # Build full output path from vault + path + filename
+        full_dir_path = Path(obsidian_vault) / path
         output_path = full_dir_path / filename
 
-        # Create directory if it doesn't exist
+        # Create parent directories if they don't exist
         full_dir_path.mkdir(parents=True, exist_ok=True)
 
         # Search PubMed for PMIDs

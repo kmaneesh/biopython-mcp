@@ -148,8 +148,9 @@ class TestPubMedReview:
         with tempfile.TemporaryDirectory() as tmpdir:
             result = pubmed.pubmed_review(
                 query="test query",
+                path="test",
+                filename="review.md",
                 obsidian_vault=tmpdir,
-                storage_path="test",
                 max_results=2,
             )
 
@@ -179,8 +180,9 @@ class TestPubMedReview:
         with tempfile.TemporaryDirectory() as tmpdir:
             result = pubmed.pubmed_review(
                 query="test",
+                path="test",
+                filename="review.md",
                 obsidian_vault=tmpdir,
-                storage_path="test",
             )
 
             assert result["status"] == "error"
@@ -198,8 +200,9 @@ class TestPubMedReview:
         with tempfile.TemporaryDirectory() as tmpdir:
             result = pubmed.pubmed_review(
                 query="test",
+                path="test",
+                filename="review.md",
                 obsidian_vault=tmpdir,
-                storage_path="test",
             )
 
             assert result["status"] == "error"
@@ -233,8 +236,9 @@ class TestPubMedReview:
         with tempfile.TemporaryDirectory() as tmpdir:
             result = pubmed.pubmed_review(
                 query="test query",
+                path="research",
+                filename="literature_review.md",
                 obsidian_vault=tmpdir,
-                storage_path="research",
             )
 
             assert result["status"] == "success"
