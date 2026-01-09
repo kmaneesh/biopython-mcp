@@ -376,14 +376,22 @@ def pubmed_review(
 
                     # Authors
                     if authors:
-                        author_names = [
-                            f"{a.get('LastName', '')} {a.get('Initials', '')}".strip()
-                            for a in authors[:10]
-                        ]
-                        content_parts.append(f"**Authors:** {', '.join(author_names)}")
-                        if len(authors) > 10:
-                            content_parts.append(f", et al. ({len(authors)} total)")
-                        content_parts.append("\n")
+                        author_names = []
+                        for a in authors[:10]:
+                            if isinstance(a, dict):
+                                # Handle dictionary format
+                                name = f"{a.get('LastName', '')} {a.get('Initials', '')}".strip()
+                            else:
+                                # Handle string format
+                                name = str(a)
+                            if name:
+                                author_names.append(name)
+                        
+                        if author_names:
+                            content_parts.append(f"**Authors:** {', '.join(author_names)}")
+                            if len(authors) > 10:
+                                content_parts.append(f", et al. ({len(authors)} total)")
+                            content_parts.append("\n")
 
                     # Fetch full abstract
                     fetch_result = database.entrez_fetch(
