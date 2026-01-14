@@ -17,9 +17,9 @@ mcp = FastMCP("biopython-mcp")
 _email = os.environ.get("NCBI_EMAIL", "user@example.com")
 _api_key = os.environ.get("NCBI_API_KEY")
 
-Entrez.email = _email
+Entrez.email = _email  # type: ignore[assignment]
 if _api_key:
-    Entrez.api_key = _api_key
+    Entrez.api_key = _api_key  # type: ignore[assignment]
 
 rate_limit_msg = "10 req/sec (with API key)" if _api_key else "3 req/sec (no API key)"
 print(f"Entrez configured: {_email}, Rate limit: {rate_limit_msg}", file=sys.stderr)
